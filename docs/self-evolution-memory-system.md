@@ -1,7 +1,7 @@
 # Self-Evolution Memory System
 
 This repository uses a bounded memory system so future agents get better at
-gzhpublisher work without turning every session into permanent context.
+social-publisher work without turning every session into permanent context.
 
 ## Default Policy
 
@@ -20,7 +20,7 @@ gzhpublisher work without turning every session into permanent context.
 
 ## Installing Hooks In Another Project
 
-Run this from the gzhpublisher repository:
+Run this from the social-publisher workspace:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_self_evolution_hooks.ps1 -TargetRepo "C:\path\to\new-project" -InstallPolicy
@@ -88,12 +88,16 @@ references.
 - Action: keep candidate | update existing skill | create new skill
 ```
 
-## gzhpublisher Pilot Rules
+## Social Publisher Pilot Rules
 
-- Author red line: generated WeChat articles use `author: 桥博士`, never
-  `author: 宽论`.
-- Publish red line: `mcp__wenyan-mcp__publish_article` gets only `file` and
-  `theme_id`, with `theme_id: "orangeheart"`.
+- Final publish boundary: browser automation may prepare a draft but must not
+  click the final public publish button.
+- Platform separation: Xiaohongshu, Douyin, and WeChat Channels keep separate
+  adapters. Share only generic helpers such as logging, screenshots, file
+  validation, profile handling, retries, and status output.
+- Distribution safety: do not commit or distribute Chrome profiles, cookies,
+  local storage, account configs, screenshots, DOM snapshots, generated work
+  directories, or `node_modules`.
 - Skill writing: keep the `SKILL.md` router small and move detailed guidance to
   `references/`.
 - Knowledge source handling: external best-practice sources belong in `llm-wiki`

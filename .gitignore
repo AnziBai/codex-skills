@@ -1,0 +1,34 @@
+# Local browser/login state
+profiles/
+**/profiles/
+
+# Installed dependencies
+node_modules/
+**/node_modules/
+
+# Generated publish/test work
+*-test-work/
+out/
+qa-assets/
+logs/
+manual/
+publish-result.json
+draft-fill-result.json
+draft-plan.json
+copy-pack.json
+copy-pack.md
+selected-copy.json
+.publish.lock
+
+# Local account configs and secrets
+*accounts*.json
+*.local.json
+
+# Browser artifacts
+*.dom.html
+trace.zip
+screenshots/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

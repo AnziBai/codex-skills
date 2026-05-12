@@ -1,0 +1,16 @@
+{
+  "name": "social-publisher-draft-fill",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "doctor": "node src/cli.mjs doctor --json",
+    "preflight": "node src/cli.mjs preflight --json",
+    "sample-run": "node src/cli.mjs sample-run --json",
+    "diagnose-failure": "node src/cli.mjs diagnose-failure --json",
+    "check": "node --check src/cli.mjs && node --check src/adapters.mjs && node --check src/utils.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.56.0"
+  }
+}

@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/self_evolution_hook.ps1 -Event pre-push

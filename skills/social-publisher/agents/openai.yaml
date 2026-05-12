@@ -1,0 +1,7 @@
+interface:
+  display_name: "Social Publisher"
+  short_description: "Prepare platform copy and fill social drafts with preflight questions, diagnostics, and safe publish boundaries."
+  default_prompt: "Use $social-publisher to generate/select copy, run preflight, fill the platform draft, diagnose failures, and stop before final public publish."
+
+policy:
+  allow_implicit_invocation: true

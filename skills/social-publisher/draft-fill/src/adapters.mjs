@@ -257,14 +257,13 @@ async function countXhsVisibleImagePreviews(page) {
       return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
     };
     const cards = Array.from(document.querySelectorAll(".image-preview")).filter(isVisible);
-    if (cards.length > 0) return cards.length;
-
-    const fallbackCards = new Set();
+    const uniquePreviewSources = new Set();
     for (const image of document.querySelectorAll(".preivew-image, .preview-image")) {
       if (!isVisible(image)) continue;
-      fallbackCards.add(image.closest(".image-preview") || image);
+      const src = image.currentSrc || image.getAttribute("src") || image.style.backgroundImage || "";
+      if (src) uniquePreviewSources.add(src);
     }
-    return fallbackCards.size;
+    return Math.max(cards.length, uniquePreviewSources.size);
   }).catch(() => 0);
   return count > 0 ? count : null;
 }

@@ -510,7 +510,7 @@ function Get-RelativeAssetPaths {
 function Get-DefaultDeclaration {
   param([string]$Platform)
   switch ($Platform) {
-    "xiaohongshu" { return [ordered]@{ mode = "original"; label = "原创声明" } }
+    "xiaohongshu" { return [ordered]@{ mode = "original"; label = "原创声明"; content_label = "内容来源声明"; source_label = "自主拍摄"; source_location = "上海"; source_date = (Get-Date).ToString("yyyy-MM-dd") } }
     "douyin" { return [ordered]@{ mode = "personal_opinion"; label = "内容为个人观点或见解" } }
     "wechat_channels" { return [ordered]@{ mode = "original"; label = "原创" } }
     default { return [ordered]@{ mode = "none"; label = $null } }
@@ -624,6 +624,24 @@ function Save-DraftPlan {
   $plan = New-DraftPlan $WorkRoot $TargetId
   Save-JsonAtomic (Join-Path $WorkRoot "draft-plan.json") $plan
   return $plan
+}
+
+function Ensure-DraftPlan {
+  param([string]$WorkRoot, [string]$TargetId)
+  $planPath = Join-Path $WorkRoot "draft-plan.json"
+  if (!(Test-Path -LiteralPath $planPath)) {
+    Save-DraftPlan $WorkRoot $TargetId | Out-Null
+    return
+  }
+  if ([string]::IsNullOrWhiteSpace($TargetId)) { return }
+  try {
+    $existing = Read-JsonFile $planPath
+    if ([string]$existing.target_id -ne $TargetId) {
+      Save-DraftPlan $WorkRoot $TargetId | Out-Null
+    }
+  } catch {
+    Save-DraftPlan $WorkRoot $TargetId | Out-Null
+  }
 }
 
 function New-EmptyResult {
@@ -1041,9 +1059,7 @@ try {
   if ($Command -eq "preflight") {
     if ([string]::IsNullOrWhiteSpace($WorkDir)) { throw "-WorkDir is required." }
     $workRootForPreflight = Get-WorkPath $WorkDir
-    if (!(Test-Path -LiteralPath (Join-Path $workRootForPreflight "draft-plan.json"))) {
-      Save-DraftPlan $workRootForPreflight $TargetId | Out-Null
-    }
+    Ensure-DraftPlan $workRootForPreflight $TargetId
     Invoke-DraftFillNode "preflight" $workRootForPreflight $TargetId $ProfileName $Platform $DryRun $Json
   }
 
@@ -1060,9 +1076,7 @@ try {
   if ($Command -eq "draft-fill") {
     if ([string]::IsNullOrWhiteSpace($WorkDir)) { throw "-WorkDir is required." }
     $workRootForFill = Get-WorkPath $WorkDir
-    if (!(Test-Path -LiteralPath (Join-Path $workRootForFill "draft-plan.json"))) {
-      Save-DraftPlan $workRootForFill $TargetId | Out-Null
-    }
+    Ensure-DraftPlan $workRootForFill $TargetId
     Invoke-DraftFillNode "draft-fill" $workRootForFill $TargetId $ProfileName $Platform $DryRun $Json
   }
 

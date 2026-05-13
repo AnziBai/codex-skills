@@ -237,6 +237,12 @@ try {
   Assert-True ($draftFillJson.profile_name -eq "xhs-test") "draft-fill should honor ProfileName"
   Assert-True (Test-Path (Join-Path $copyWork "draft-fill-result.json")) "draft-fill should create draft-fill-result.json"
   Assert-True (Test-Path (Join-Path $copyWork "logs\xhs-main-note\run.json")) "draft-fill should write target run log"
+  $draftPlanDouyinOverwrite = Invoke-Publisher -PublisherArgs @("draft-plan", "-WorkDir", $copyWork, "-TargetId", "douyin-main-video", "-Json")
+  Assert-True ($draftPlanDouyinOverwrite.Code -eq 0) "draft-plan should allow another target in the same workdir"
+  $draftFillAfterOverwrite = Invoke-Publisher -PublisherArgs @("draft-fill", "-WorkDir", $copyWork, "-TargetId", "xhs-main-note", "-ProfileName", "xhs-test", "-DryRun", "-Json")
+  Assert-True ($draftFillAfterOverwrite.Code -eq 0) "draft-fill should regenerate stale target-specific draft-plan after another target overwrote it, got $($draftFillAfterOverwrite.Code): stdout=$($draftFillAfterOverwrite.Stdout) stderr=$($draftFillAfterOverwrite.Stderr)"
+  $draftFillAfterOverwriteJson = $draftFillAfterOverwrite.Stdout | ConvertFrom-Json
+  Assert-True ($draftFillAfterOverwriteJson.target_id -eq "xhs-main-note") "draft-fill after overwrite should run requested target"
   $stalePlanPath = Join-Path $copyWork "draft-plan.json"
   $stalePlan = Get-Content -LiteralPath $stalePlanPath -Raw -Encoding UTF8 | ConvertFrom-Json
   $stalePlan.schedule = [ordered]@{ mode = "scheduled_exact"; publish_at = "2000-01-01T00:00:00+08:00" }
@@ -258,6 +264,8 @@ try {
   Assert-True ($xhsThreeImageJson.relative_asset_paths.images[2] -eq "assets\3.jpg") "xhs three-image plan should preserve image order"
   Assert-True ($xhsThreeImageJson.collection -eq (Utf8 "5a696K66")) "xhs collection should be inferred from broad product knowledge when absent"
   Assert-True ($xhsThreeImageJson.declaration.mode -eq "original") "xhs should default to original declaration"
+  Assert-True (-not [string]::IsNullOrWhiteSpace([string]$xhsThreeImageJson.declaration.source_location)) "xhs default declaration should include source location for content-source modal"
+  Assert-True (-not [string]::IsNullOrWhiteSpace([string]$xhsThreeImageJson.declaration.source_date)) "xhs default declaration should include source date for content-source modal"
   Assert-True ($xhsThreeImageJson.music.strategy -eq "none") "xhs should not inherit Douyin music behavior"
   Assert-True ($xhsThreeImageJson.schedule.mode -eq "scheduled_exact") "xhs scheduled work should keep scheduled_exact mode"
   $xhsPreflight = Invoke-Publisher -PublisherArgs @("preflight", "-WorkDir", $xhsThreeImageWork, "-TargetId", "xhs-three-image", "-ProfileName", "xhs-test", "-Json")

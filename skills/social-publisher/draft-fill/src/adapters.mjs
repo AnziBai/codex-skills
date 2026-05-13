@@ -36,7 +36,7 @@ export const adapters = {
       steps.push(await ensureDouyinComposer(page, { requireEditable: true }));
       if (steps[steps.length - 1].status !== STATUS.done) return steps;
       steps.push(await fillFirst(page, "title", ["input[placeholder*='添加作品标题']", "textarea[placeholder*='添加作品标题']"], plan.title));
-      steps.push(await fillFirst(page, "body", ["textarea[placeholder*='添加作品描述']", "[contenteditable='true']"], plan.body));
+      steps.push(await fillDouyinBody(page, plan.body));
       steps.push(await selectTopics(page, plan.tags || [], { appendAfterBody: true, delayMs: 900 }));
       steps.push(await selectCollection(page, plan.collection));
       steps.push(await selectDouyinDeclaration(page, plan.declaration));
@@ -153,8 +153,8 @@ async function uploadFiles(page, plan, selector, name) {
     if (uploadState.status !== STATUS.done) {
       return step(name, uploadState.status, uploadState.message, { files });
     }
-    if (plan.platform === "douyin" && Array.isArray(plan.asset_paths?.images) && plan.asset_paths.images.length > 0) {
-      const visibleUpload = await verifyDouyinUploadedImages(page, files.length);
+    if (["douyin", "xiaohongshu"].includes(plan.platform) && Array.isArray(plan.asset_paths?.images) && plan.asset_paths.images.length > 0) {
+      const visibleUpload = await verifyVisibleUploadedImages(page, files.length, plan.platform);
       if (visibleUpload.status !== STATUS.done) {
         return step(name, visibleUpload.status, visibleUpload.message, { files, ...visibleUpload.details });
       }
@@ -201,36 +201,116 @@ async function waitForDouyinPostEditor(page, timeoutMs) {
   return false;
 }
 
-async function verifyDouyinUploadedImages(page, expectedCount) {
+async function verifyVisibleUploadedImages(page, expectedCount, platform) {
   const deadline = Date.now() + 30000;
-  const exactCountPattern = new RegExp(`已添加\\s*${expectedCount}\\s*张图片`);
   let lastExcerpt = "";
   while (Date.now() < deadline) {
     const text = await page.locator("body").innerText({ timeout: 5000 }).catch(() => "");
-    const marker = text.match(/已添加\s*\d+\s*张图片/);
-    if (marker) {
-      const visibleCount = Number((marker[0].match(/\d+/) || [])[0]);
-      if (exactCountPattern.test(marker[0])) {
+    const visibleCount = extractVisibleUploadedImageCount(text);
+    if (visibleCount !== null) {
+      const marker = visibleImageCountMarker(text) || `${visibleCount} image(s)`;
+      if (visibleCount === expectedCount) {
         return {
           status: STATUS.done,
-          message: `Douyin page confirms ${expectedCount} uploaded image(s).`,
-          details: { visible_count: visibleCount, visible_marker: marker[0] }
+          message: `${platform} page confirms ${expectedCount} uploaded image(s).`,
+          details: { visible_count: visibleCount, visible_marker: marker }
         };
       }
       return {
         status: STATUS.needsHuman,
-        message: `Douyin page shows ${visibleCount} uploaded image(s), expected ${expectedCount}.`,
-        details: { visible_count: visibleCount, visible_marker: marker[0] }
+        message: `${platform} page shows ${visibleCount} uploaded image(s), expected ${expectedCount}.`,
+        details: { visible_count: visibleCount, visible_marker: marker }
       };
+    }
+    if (platform === "xiaohongshu") {
+      const previewCount = await countXhsVisibleImagePreviews(page);
+      if (previewCount !== null) {
+        if (previewCount === expectedCount) {
+          return {
+            status: STATUS.done,
+            message: `Xiaohongshu page shows ${expectedCount} image preview(s).`,
+            details: { visible_count: previewCount, visible_marker: "image-preview" }
+          };
+        }
+        return {
+          status: STATUS.needsHuman,
+          message: `Xiaohongshu page shows ${previewCount} image preview(s), expected ${expectedCount}.`,
+          details: { visible_count: previewCount, visible_marker: "image-preview" }
+        };
+      }
     }
     lastExcerpt = text.slice(0, 500);
     await page.waitForTimeout(1000);
   }
   return {
     status: STATUS.needsHuman,
-    message: `Douyin upload count was not visible after upload; expected ${expectedCount} image(s).`,
+    message: `${platform} upload count was not visible after upload; expected ${expectedCount} image(s).`,
     details: { visible_count: 0, visible_marker: "", text_excerpt: lastExcerpt }
   };
+}
+
+async function countXhsVisibleImagePreviews(page) {
+  const count = await page.evaluate(() => {
+    const isVisible = (element) => {
+      const style = window.getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+    };
+    const cards = Array.from(document.querySelectorAll(".image-preview")).filter(isVisible);
+    if (cards.length > 0) return cards.length;
+
+    const fallbackCards = new Set();
+    for (const image of document.querySelectorAll(".preivew-image, .preview-image")) {
+      if (!isVisible(image)) continue;
+      fallbackCards.add(image.closest(".image-preview") || image);
+    }
+    return fallbackCards.size;
+  }).catch(() => 0);
+  return count > 0 ? count : null;
+}
+
+export function extractVisibleUploadedImageCount(text) {
+  const value = String(text || "");
+  const patterns = [
+    /已添加\s*(\d+)\s*张图片/,
+    /共\s*(\d+)\s*张图片/,
+    /已上传\s*(\d+)\s*张图片/,
+    /(\d+)\s*\/\s*\d+\s*张/
+  ];
+  for (const pattern of patterns) {
+    const match = value.match(pattern);
+    if (match) return Number(match[1]);
+  }
+  return null;
+}
+
+function visibleImageCountMarker(text) {
+  const value = String(text || "");
+  return value.match(/已添加\s*\d+\s*张图片|共\s*\d+\s*张图片|已上传\s*\d+\s*张图片|\d+\s*\/\s*\d+\s*张/)?.[0] || "";
+}
+
+export function textContainsPlainTags(text, tags) {
+  const value = String(text || "");
+  return (tags || []).some((rawTag) => {
+    const tag = normalizeXhsTag(rawTag);
+    if (!tag) return false;
+    return new RegExp(`#\\s*${escapeRegExp(tag)}(?=\\s|$|[，。！？,.!?])`, "u").test(value);
+  });
+}
+
+export function textContainsContentFingerprint(text, expected) {
+  const fingerprint = normalizeReadbackText(expected);
+  if (!fingerprint) return true;
+  const haystack = normalizeReadbackText(text);
+  const prefixLength = Math.min(fingerprint.length, Math.max(8, Math.min(20, fingerprint.length)));
+  return haystack.includes(fingerprint.slice(0, prefixLength));
+}
+
+function normalizeReadbackText(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/\s+/g, "")
+    .replace(/[，。！？、；：,.!?;:*|#]/g, "");
 }
 
 async function waitForUploadProgress(page) {
@@ -256,12 +336,39 @@ async function fillFirst(page, name, selectors, value) {
       await locator.waitFor({ state: "visible", timeout: 3000 });
       await locator.fill(value, { timeout: 10000 });
       await page.waitForTimeout(300);
+      const actual = await readLocatorValue(locator);
+      if (!textContainsContentFingerprint(actual, value)) {
+        return step(name, STATUS.needsHuman, `${name} field did not retain expected text after filling.`);
+      }
       return step(name, STATUS.done, `${name} filled using ${selector}.`);
     } catch {
       // Try the next selector.
     }
   }
   return step(name, STATUS.needsHuman, `No stable editable field found for ${name}.`);
+}
+
+async function fillDouyinBody(page, value) {
+  if (!value) return step("body", STATUS.skipped, "No value in plan.");
+  const selectors = ["textarea[placeholder*='添加作品描述']", "[contenteditable='true']"];
+  for (const selector of selectors) {
+    const locator = page.locator(selector).first();
+    try {
+      if ((await locator.count()) === 0) continue;
+      await locator.waitFor({ state: "visible", timeout: 3000 });
+      await locator.fill(value, { timeout: 10000 });
+      await page.waitForTimeout(700);
+      const actual = await readLocatorValue(locator);
+      const pageText = await page.locator("body").innerText({ timeout: 5000 }).catch(() => "");
+      if (textContainsContentFingerprint(actual, value) || textContainsContentFingerprint(pageText, value)) {
+        return step("body", STATUS.done, `Douyin body filled and verified using ${selector}.`);
+      }
+      return step("body", STATUS.needsHuman, "Douyin body was filled, but neither the editor nor page preview showed the expected text.");
+    } catch {
+      // Try the next selector.
+    }
+  }
+  return step("body", STATUS.needsHuman, "No stable editable field found for Douyin body.");
 }
 
 async function selectTopics(page, tags, options = {}) {
@@ -306,6 +413,10 @@ async function fillXhsBody(page, value) {
     await editor.click({ timeout: 5000, force: true });
     await editor.fill(value, { timeout: 10000 });
     await page.waitForTimeout(500);
+    const actual = await readLocatorValue(editor);
+    if (!actual.includes(String(value).slice(0, Math.min(20, String(value).length)))) {
+      return step("body", STATUS.needsHuman, "Xiaohongshu body editor did not retain expected text after filling.");
+    }
     return step("body", STATUS.done, "body filled using Xiaohongshu ProseMirror editor.");
   } catch (error) {
     return step("body", STATUS.needsHuman, `Xiaohongshu body needs manual handling: ${error.message.split("\n")[0]}`);
@@ -330,10 +441,17 @@ async function fillXhsTitle(page, value) {
     await page.waitForTimeout(500);
     const actual = await title.inputValue({ timeout: 3000 });
     if (!actual) return step("title", STATUS.needsHuman, "Xiaohongshu title input stayed empty after typing.");
+    if (actual !== cleaned) return step("title", STATUS.needsHuman, `Xiaohongshu title mismatch after typing: expected ${cleaned}, actual ${actual}`);
     return step("title", STATUS.done, `Xiaohongshu title filled: ${actual}`);
   } catch (error) {
     return step("title", STATUS.needsHuman, `Xiaohongshu title needs manual handling: ${error.message.split("\n")[0]}`);
   }
+}
+
+async function readLocatorValue(locator) {
+  const inputValue = await locator.inputValue({ timeout: 1500 }).catch(() => null);
+  if (inputValue !== null && inputValue !== undefined) return String(inputValue);
+  return String(await locator.textContent({ timeout: 1500 }).catch(() => "") || "");
 }
 
 function normalizeXhsBody(body, tags) {

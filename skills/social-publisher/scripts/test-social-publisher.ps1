@@ -277,6 +277,19 @@ try {
   }
   $draftFillPackage = Join-Path $SkillRoot "draft-fill\package.json"
   Assert-True (Test-Path -LiteralPath $draftFillPackage) "draft-fill package.json should exist"
+  $adapterHelperTest = Join-Path $SkillRoot "draft-fill\test\adapters.test.mjs"
+  Assert-True (Test-Path -LiteralPath $adapterHelperTest) "draft-fill adapter helper tests should exist"
+  $stdoutFile = [System.IO.Path]::GetTempFileName()
+  $stderrFile = [System.IO.Path]::GetTempFileName()
+  $oldPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  & node $adapterHelperTest 1> $stdoutFile 2> $stderrFile
+  $nodeCode = $LASTEXITCODE
+  $ErrorActionPreference = $oldPreference
+  $nodeStdout = Get-Content -LiteralPath $stdoutFile -Raw -ErrorAction SilentlyContinue
+  $nodeStderr = Get-Content -LiteralPath $stderrFile -Raw -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $stdoutFile, $stderrFile -Force -ErrorAction SilentlyContinue
+  Assert-True ($nodeCode -eq 0) "adapter helper tests should pass, got $nodeCode stdout=$nodeStdout stderr=$nodeStderr"
   $draftFillCli = Join-Path $SkillRoot "draft-fill\src\cli.mjs"
   Assert-True (Test-Path -LiteralPath $draftFillCli) "draft-fill CLI should exist"
   $draftFillCliText = Get-Content -LiteralPath $draftFillCli -Raw -Encoding UTF8

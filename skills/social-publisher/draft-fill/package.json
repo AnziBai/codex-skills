@@ -8,6 +8,7 @@
     "preflight": "node src/cli.mjs preflight --json",
     "sample-run": "node src/cli.mjs sample-run --json",
     "diagnose-failure": "node src/cli.mjs diagnose-failure --json",
+    "test": "node test/adapters.test.mjs",
     "check": "node --check src/cli.mjs && node --check src/adapters.mjs && node --check src/utils.mjs"
   },
   "dependencies": {

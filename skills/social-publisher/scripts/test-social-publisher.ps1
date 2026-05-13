@@ -269,9 +269,50 @@ try {
   Assert-True ($xhsThreeImageJson.music.strategy -eq "none") "xhs should not inherit Douyin music behavior"
   Assert-True ($xhsThreeImageJson.schedule.mode -eq "scheduled_exact") "xhs scheduled work should keep scheduled_exact mode"
   $xhsPreflight = Invoke-Publisher -PublisherArgs @("preflight", "-WorkDir", $xhsThreeImageWork, "-TargetId", "xhs-three-image", "-ProfileName", "xhs-test", "-Json")
-  Assert-True ($xhsPreflight.Code -eq 0) "xhs preflight scenario should exit 0"
+  Assert-True ($xhsPreflight.Code -eq 4) "xhs preflight with unresolved collection inspection should exit 4"
   $xhsPreflightJson = $xhsPreflight.Stdout | ConvertFrom-Json
-  Assert-True (@($xhsPreflightJson.questions).Count -eq 0) "complete xhs scenario should not ask unresolved questions"
+  Assert-True (@($xhsPreflightJson.questions).Count -eq 1) "xhs preflight should ask for collection inspection when no trusted cache exists"
+  Assert-True ($xhsPreflightJson.questions[0].id -eq "inspect_collections") "xhs preflight should request inspect-collections before real draft fill"
+  $xhsConfirmationIds = @($xhsPreflightJson.confirmations | ForEach-Object { $_.id })
+  Assert-True ($xhsConfirmationIds -contains "target_platforms") "preflight should confirm target platforms before real work"
+  Assert-True ($xhsConfirmationIds -contains "asset_location_order") "preflight should confirm asset location and upload order before real work"
+  $xhsInspectDry = Invoke-Publisher -PublisherArgs @("inspect-collections", "-WorkDir", $xhsThreeImageWork, "-TargetId", "xhs-three-image", "-ProfileName", "xhs-test", "-DryRun", "-Json")
+  Assert-True ($xhsInspectDry.Code -eq 4) "inspect-collections dry-run without trusted cache should exit 4"
+  $xhsInspectDryJson = $xhsInspectDry.Stdout | ConvertFrom-Json
+  Assert-True ($xhsInspectDryJson.collection_cache.path_hint -eq "profiles/xhs-test/collection-cache.json") "inspect-collections should return redacted cache path hint"
+  $xhsInspectConfirmedMissing = Invoke-Publisher -PublisherArgs @("inspect-collections", "-WorkDir", $xhsThreeImageWork, "-TargetId", "xhs-three-image", "-ProfileName", "xhs-test", "-DryRun", "-ConfirmAccountFingerprint", "-Json")
+  Assert-True ($xhsInspectConfirmedMissing.Code -eq 2) "confirm-account-fingerprint should require draft-plan account_fingerprint"
+  $summaryBeforeRun = Invoke-Publisher -PublisherArgs @("result-summary", "-WorkDir", $xhsThreeImageWork, "-Json")
+  Assert-True ($summaryBeforeRun.Code -eq 2) "result-summary should return validation error before a draft-fill result exists"
+
+  $matrixOutputRoot = Join-Path $root "matrix-output"
+  $matrixRun = Invoke-Publisher -PublisherArgs @("robustness-matrix", "-SourceRoot", $xhsThreeImageWork, "-OutputRoot", $matrixOutputRoot, "-Json")
+  Assert-True ($matrixRun.Code -eq 0) "robustness-matrix wrapper should forward SourceRoot/OutputRoot"
+  $matrixJson = $matrixRun.Stdout | ConvertFrom-Json
+  Assert-True ($matrixJson.source_root -eq $xhsThreeImageWork) "robustness-matrix should echo SourceRoot"
+  Assert-True ($matrixJson.output_root -eq $matrixOutputRoot) "robustness-matrix should echo OutputRoot"
+
+  $wechatDryWork = Join-Path $root "wechat-dry-work"
+  New-Item -ItemType Directory -Force -Path $wechatDryWork | Out-Null
+  New-DraftScenarioWork $wechatDryWork "wechat-dry-work" "wechat_channels" "image" "wechat-dry" "wechat_channels_main" @("assets\1.jpg") ""
+  $wechatDryPlan = Invoke-Publisher -PublisherArgs @("draft-plan", "-WorkDir", $wechatDryWork, "-TargetId", "wechat-dry", "-Json")
+  Assert-True ($wechatDryPlan.Code -eq 0) "wechat dry draft-plan should exit 0"
+  $wechatInspectInvalidSurface = Invoke-Publisher -PublisherArgs @("inspect-wechat-channels", "-WorkDir", $wechatDryWork, "-TargetId", "wechat-dry", "-ProfileName", "wechat-test", "-Surface", "unknown-surface", "-DryRun", "-Json")
+  Assert-True ($wechatInspectInvalidSurface.Code -eq 2) "inspect-wechat-channels should reject invalid surface before browser work"
+  $wechatInspectInvalidSurfaceJson = $wechatInspectInvalidSurface.Stdout | ConvertFrom-Json
+  Assert-True ($wechatInspectInvalidSurfaceJson.error_code -eq "invalid_surface") "invalid surface should return a stable error_code"
+  $wechatInspectDry = Invoke-Publisher -PublisherArgs @("inspect-wechat-channels", "-WorkDir", $wechatDryWork, "-TargetId", "wechat-dry", "-ProfileName", "wechat-test", "-Surface", "image-list", "-DryRun", "-Json")
+  Assert-True ($wechatInspectDry.Code -eq 0) "inspect-wechat-channels dry-run should forward Surface and exit 0"
+  $wechatInspectDryJson = $wechatInspectDry.Stdout | ConvertFrom-Json
+  Assert-True ($wechatInspectDryJson.surface -eq "image-list") "inspect-wechat-channels should echo valid Surface"
+  $badProfileSetup = Invoke-Publisher -PublisherArgs @("setup-draft-fill", "-ProfileName", "bad:profile", "-Json")
+  Assert-True ($badProfileSetup.Code -eq 2) "setup should reject profile names containing colon"
+  $reservedProfileSetup = Invoke-Publisher -PublisherArgs @("setup-draft-fill", "-ProfileName", "con", "-Json")
+  Assert-True ($reservedProfileSetup.Code -eq 2) "setup should reject Windows reserved profile names"
+  $trimmedProfileSetup = Invoke-Publisher -PublisherArgs @("setup-draft-fill", "-ProfileName", "ok ", "-Json")
+  Assert-True ($trimmedProfileSetup.Code -eq 2) "setup should reject profile names with implicit trimming"
+  $wechatBadProfileDry = Invoke-Publisher -PublisherArgs @("inspect-wechat-channels", "-WorkDir", $wechatDryWork, "-TargetId", "wechat-dry", "-ProfileName", "bad:profile", "-Surface", "image-list", "-DryRun", "-Json")
+  Assert-True ($wechatBadProfileDry.Code -eq 2) "inspect-wechat-channels dry-run should reject invalid profile names"
 
   $douyinVideoWork = Join-Path $root "douyin-video-work"
   New-Item -ItemType Directory -Force -Path $douyinVideoWork | Out-Null
@@ -286,6 +327,11 @@ try {
   Assert-True ($douyinVideoJson.declaration.mode -eq "personal_opinion") "douyin should default to personal opinion declaration"
   Assert-True ($douyinVideoJson.music.strategy -eq "first_recommended") "douyin should default to first recommended music"
   Assert-True ($douyinVideoJson.schedule.mode -eq "immediate") "douyin immediate work should keep immediate schedule"
+  $douyinPreflight = Invoke-Publisher -PublisherArgs @("preflight", "-WorkDir", $douyinVideoWork, "-TargetId", "douyin-video", "-ProfileName", "douyin-test", "-Json")
+  Assert-True ($douyinPreflight.Code -eq 4) "douyin immediate preflight should exit 4 with unresolved intake"
+  $douyinPreflightJson = $douyinPreflight.Stdout | ConvertFrom-Json
+  $douyinConfirmationIds = @($douyinPreflightJson.confirmations | ForEach-Object { $_.id })
+  Assert-True ($douyinConfirmationIds -contains "douyin_unscheduled_draft_warning") "douyin immediate preflight should warn about desktop draft persistence"
 
   $incompleteXhsWork = Join-Path $root "incomplete-xhs-work"
   New-Item -ItemType Directory -Force -Path $incompleteXhsWork | Out-Null
@@ -293,12 +339,40 @@ try {
   $incompletePlan = Invoke-Publisher -PublisherArgs @("draft-plan", "-WorkDir", $incompleteXhsWork, "-TargetId", "incomplete-xhs", "-Json")
   Assert-True ($incompletePlan.Code -eq 0) "incomplete xhs draft-plan should still generate for preflight questions"
   $incompletePreflight = Invoke-Publisher -PublisherArgs @("preflight", "-WorkDir", $incompleteXhsWork, "-TargetId", "incomplete-xhs", "-ProfileName", "xhs-test", "-Json")
-  Assert-True ($incompletePreflight.Code -eq 0) "incomplete xhs preflight should exit 0 with questions"
+  Assert-True ($incompletePreflight.Code -eq 4) "incomplete xhs preflight should exit 4 with unresolved questions"
   $incompletePreflightJson = $incompletePreflight.Stdout | ConvertFrom-Json
   $questionIds = @($incompletePreflightJson.questions | ForEach-Object { $_.id })
   Assert-True ($questionIds -contains "title_optimization") "preflight should ask title optimization for file-like titles"
   Assert-True ($questionIds -contains "collection") "preflight should ask collection when product knowledge cannot infer one"
   Assert-True ($questionIds -contains "schedule") "preflight should ask scheduling choice for immediate work"
+  Assert-True ($questionIds -contains "scheduling_needed") "preflight should ask whether scheduling is needed with a stable intake id"
+  $incompleteConfirmationIds = @($incompletePreflightJson.confirmations | ForEach-Object { $_.id })
+  Assert-True ($incompleteConfirmationIds -contains "target_platforms") "preflight should confirm target platforms when manifest target intake is present"
+  Assert-True ($incompleteConfirmationIds -contains "asset_location_order") "preflight should confirm asset location/order when manifest asset intake is present"
+  $intakeGateProfile = "intake-gate-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+  $intakeGateLock = Join-Path $SkillRoot "profiles\$intakeGateProfile.draft-fill.lock"
+  $incompleteDraftFillReal = Invoke-Publisher -PublisherArgs @("draft-fill", "-WorkDir", $incompleteXhsWork, "-TargetId", "incomplete-xhs", "-ProfileName", $intakeGateProfile, "-Json")
+  Assert-True ($incompleteDraftFillReal.Code -eq 4) "real draft-fill should require confirmed intake before opening the browser"
+  $incompleteDraftFillRealJson = $incompleteDraftFillReal.Stdout | ConvertFrom-Json
+  Assert-True ($incompleteDraftFillRealJson.overall_status -eq "needs_human") "unconfirmed real draft-fill should stop as needs_human"
+  Assert-True (@($incompleteDraftFillRealJson.steps | Where-Object { $_.name -eq "preflight_intake" -and $_.status -eq "needs_human" }).Count -eq 1) "unconfirmed real draft-fill should include preflight_intake gate"
+  Assert-True (@($incompleteDraftFillRealJson.questions | ForEach-Object { $_.id }) -contains "scheduling_needed") "draft-fill intake gate should return preflight questions"
+  Assert-True (@($incompleteDraftFillRealJson.confirmations | ForEach-Object { $_.id }) -contains "final_publish_boundary") "draft-fill intake gate should return preflight confirmations"
+  Assert-True (-not (Test-Path -LiteralPath $intakeGateLock)) "unconfirmed intake should not acquire a browser profile lock"
+
+  $scheduledBatchWork = Join-Path $root "scheduled-batch-work"
+  New-Item -ItemType Directory -Force -Path $scheduledBatchWork | Out-Null
+  New-Work $scheduledBatchWork "scheduled-batch-work" @(
+    [ordered]@{ target_id = "batch-xhs"; platform = "xiaohongshu"; kind = "note"; account_id = "xhs_main"; overrides = [ordered]@{} },
+    [ordered]@{ target_id = "batch-douyin"; platform = "douyin"; kind = "video"; account_id = "douyin_main"; overrides = [ordered]@{} }
+  ) "2026-05-14T21:30:00+08:00" "scheduled"
+  $scheduledBatchPlan = Invoke-Publisher -PublisherArgs @("draft-plan", "-WorkDir", $scheduledBatchWork, "-TargetId", "batch-xhs", "-Json")
+  Assert-True ($scheduledBatchPlan.Code -eq 0) "scheduled batch draft-plan should exit 0"
+  $scheduledBatchPreflight = Invoke-Publisher -PublisherArgs @("preflight", "-WorkDir", $scheduledBatchWork, "-TargetId", "batch-xhs", "-ProfileName", "xhs-test", "-Json")
+  Assert-True ($scheduledBatchPreflight.Code -eq 4) "scheduled batch preflight should exit 4 with unresolved cadence"
+  $scheduledBatchPreflightJson = $scheduledBatchPreflight.Stdout | ConvertFrom-Json
+  $scheduledBatchQuestionIds = @($scheduledBatchPreflightJson.questions | ForEach-Object { $_.id })
+  Assert-True ($scheduledBatchQuestionIds -contains "batch_schedule_cadence") "scheduled multi-platform preflight should ask per-platform cadence"
 
   $manualWork = Join-Path $root "manual-work"
   New-Item -ItemType Directory -Force -Path $manualWork | Out-Null
@@ -406,8 +480,10 @@ try {
   Assert-True ($nodeCode -eq 0) "adapter helper tests should pass, got $nodeCode stdout=$nodeStdout stderr=$nodeStderr"
   $draftFillCli = Join-Path $SkillRoot "draft-fill\src\cli.mjs"
   Assert-True (Test-Path -LiteralPath $draftFillCli) "draft-fill CLI should exist"
-  $draftFillCliText = Get-Content -LiteralPath $draftFillCli -Raw -Encoding UTF8
-  Assert-True ($draftFillCliText -match "launchPersistentContext") "draft-fill should use persistent Chrome profiles"
+  $browserProfileHelper = Join-Path $SkillRoot "draft-fill\src\browser-profile.mjs"
+  Assert-True (Test-Path -LiteralPath $browserProfileHelper) "browser profile helper should exist"
+  $browserProfileText = Get-Content -LiteralPath $browserProfileHelper -Raw -Encoding UTF8
+  Assert-True ($browserProfileText -match "launchPersistentContext") "draft-fill should use persistent Chrome profiles"
 
   "All social-publisher tests passed."
 } finally {

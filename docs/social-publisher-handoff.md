@@ -4,7 +4,7 @@ Last updated: 2026-05-12.
 
 ## Branch And Commit
 
-- Repository: `C:\Users\Administrator\Documents\New project 5`
+- Repository: this workspace root.
 - Branch: `codex/social-publisher-production-cli`
 - Latest local commit: `6e2ec29 feat: package social publisher skill`
 - Push status: blocked because no `origin` remote is configured and GitHub CLI is not available.
@@ -74,13 +74,13 @@ https://channels.weixin.qq.com/login.html
 Existing test work:
 
 ```text
-C:\Users\Administrator\Documents\New project 5\wechat-channels-test-work
+.\wechat-channels-test-work
 ```
 
 Suggested next command after logging into the dedicated profile:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\social-publisher\scripts\social-publisher.ps1" draft-fill -WorkDir ".\wechat-channels-test-work" -TargetId "wechat-channels-main-image" -ProfileName "wechat-channels-main" -Json
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\social-publisher\scripts\social-publisher.ps1" draft-fill -WorkDir ".\wechat-channels-test-work" -TargetId "wechat-channels-main-image" -ProfileName "wechat-channels-main" -ConfirmIntake -Json
 ```
 
 Read `skills/social-publisher/references/wechat-channels-real-publish-runbook.md` before implementing selectors.

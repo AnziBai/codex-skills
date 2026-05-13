@@ -86,7 +86,29 @@ export function profileDir(profileName) {
 }
 
 export function targetLogDir(workDir, targetId) {
+  assertSafePathSegment(targetId || "draft-fill", "target_id");
   return path.join(workDir, "logs", targetId || "draft-fill");
+}
+
+export function validateSafePathSegment(value, label) {
+  const text = String(value || "").trim();
+  if (
+    !text ||
+    text === "." ||
+    text === ".." ||
+    /[\\/]/.test(text) ||
+    path.isAbsolute(text) ||
+    text.includes("..") ||
+    text.includes(":")
+  ) {
+    return `${label} must be a simple stable id without path separators or traversal: ${text}`;
+  }
+  return null;
+}
+
+function assertSafePathSegment(value, label) {
+  const error = validateSafePathSegment(value || "draft-fill", label);
+  if (error) throw new Error(error);
 }
 
 export function platformPublishUrl(platform) {
@@ -106,6 +128,12 @@ export async function validatePlan(plan, workDir, targetId) {
   const errors = [];
   if (!plan || plan.plan_type !== "social_publisher_draft_plan") errors.push("draft-plan.json has unexpected plan_type.");
   if (targetId && plan.target_id !== targetId) errors.push(`draft-plan target_id ${plan.target_id} does not match ${targetId}.`);
+  const targetIdError = validateSafePathSegment(plan?.target_id, "target_id");
+  if (targetIdError) errors.push(targetIdError);
+  if (targetId) {
+    const requestedTargetIdError = validateSafePathSegment(targetId, "requested target_id");
+    if (requestedTargetIdError) errors.push(requestedTargetIdError);
+  }
   for (const field of ["platform", "target_id", "title", "body", "asset_paths"]) {
     if (plan[field] === undefined || plan[field] === null || plan[field] === "") errors.push(`draft-plan missing ${field}.`);
   }
@@ -148,11 +176,41 @@ export async function saveArtifacts(page, logDir, name) {
     // Screenshot failure should not hide the primary failure.
   }
   try {
-    await fs.writeFile(dom, await page.content(), "utf8");
+    await fs.writeFile(dom, redactedArtifactHtml("DOM snapshot redacted", page.url()), "utf8");
   } catch {
     // DOM snapshot is diagnostic only.
   }
   return { screenshot, dom };
+}
+
+export function redactedArtifactHtml(title, url = "") {
+  return [
+    "<!doctype html>",
+    "<meta charset=\"utf-8\">",
+    `<title>${escapeHtml(title)}</title>`,
+    `<h1>${escapeHtml(title)}</h1>`,
+    "<p>Raw DOM is intentionally not persisted because platform pages can contain account labels, draft text, or hidden tokens.</p>",
+    `<p>URL: ${escapeHtml(redactArtifactUrl(url))}</p>`
+  ].join("\n");
+}
+
+export function redactArtifactUrl(value) {
+  try {
+    const parsed = new URL(String(value || ""));
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 export async function writeRunResult(workDir, targetId, result) {

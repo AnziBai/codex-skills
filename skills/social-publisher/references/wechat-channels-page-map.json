@@ -1,0 +1,112 @@
+{
+  "schema_version": "1.0",
+  "platform": "wechat_channels",
+  "verified_at": "2026-05-13T11:52:10+08:00",
+  "verification_profile": "wechat-channels-main",
+  "safety_boundary": {
+    "final_publish_button": {
+      "text": "\u53d1\u8868",
+      "selector_hint": "button.weui-desktop-btn_primary",
+      "policy": "never_click"
+    },
+    "draft_save_button": {
+      "text": "\u4fdd\u5b58\u8349\u7a3f",
+      "policy": "do_not_click_in_inspector"
+    }
+  },
+  "routes": {
+    "image_list": {
+      "outer_url": "https://channels.weixin.qq.com/platform/post/finderNewLifePostList",
+      "content_frame_url_contains": "/micro/content/post/finderNewLifePostList",
+      "open_create_strategy": "click first visible primary button in content frame"
+    },
+    "image_create": {
+      "outer_url_after_open": "https://channels.weixin.qq.com/platform/post/finderNewLifeCreate",
+      "content_frame_url_contains": "/micro/content/post/finderNewLifeCreate",
+      "ready_checks": [
+        "content iframe exists",
+        "input[type=file] exists in content frame",
+        "text input placeholder contains 22 or title"
+      ]
+    },
+    "video_create": {
+      "outer_url": "https://channels.weixin.qq.com/platform/post/create",
+      "content_frame_url_contains": "/micro/content/post/create",
+      "ready_checks": [
+        "video upload dropzone is visible",
+        "description editor is visible",
+        "scheduled publish radio group is visible"
+      ]
+    }
+  },
+  "image_create_controls": {
+    "upload": {
+      "selector": "iframe[name='content'] input[type='file']",
+      "method": "CDP DOM.setFileInputFiles",
+      "verification": "img.slider-img count equals uploaded image count"
+    },
+    "title": {
+      "selector": "input[placeholder*='22']",
+      "limit": 22
+    },
+    "description": {
+      "selector": ".input-editor[contenteditable], [contenteditable]",
+      "topic_strategy": "type #tag then press Enter after each tag"
+    },
+    "collection": {
+      "selector": ".post-album-wrap, .post-album-display-wrap",
+      "verified_surface": "collection-open",
+      "selection_policy": "choose a broad matching collection; if no broad match exists, return needs_human to create or confirm a new collection"
+    },
+    "music": {
+      "selector": ".bgm-form-content-wrap",
+      "verified_surface": "music-open",
+      "observed_default": "first recommended music can already be selected"
+    },
+    "activity": {
+      "selector": ".post-activity-wrap",
+      "default_policy": "leave as not participating unless draft plan requests otherwise"
+    },
+    "schedule": {
+      "selector": "input[type='radio'][value='1']",
+      "verified_surface": "schedule-open",
+      "default_policy": "use immediate publish unless draft plan contains publish_at"
+    }
+  },
+  "video_create_controls": {
+    "upload": {
+      "observed_text": "MP4/H.264, up to 8 hours and 20GB",
+      "method": "CDP DOM.setFileInputFiles after locating video input"
+    },
+    "description": {
+      "label": "\u89c6\u9891\u63cf\u8ff0",
+      "topic_strategy": "type #tag then press Enter after each tag"
+    },
+    "short_title": {
+      "label": "\u77ed\u6807\u9898",
+      "observed_hint": "6-16 characters recommended"
+    },
+    "original_declaration": {
+      "label": "\u58f0\u660e\u539f\u521b",
+      "policy": "requires explicit plan or user confirmation before enabling"
+    },
+    "shared_fields": [
+      "collection",
+      "link",
+      "activity",
+      "schedule"
+    ]
+  },
+  "inspector_artifacts": {
+    "image_topics": "logs/<target_id>/wechat-channels-inspect/20260513T034431Z/image-topics",
+    "collection_open": "logs/<target_id>/wechat-channels-inspect/20260513T035026Z/collection-open",
+    "music_open": "logs/<target_id>/wechat-channels-inspect/20260513T035055Z/music-open",
+    "schedule_open": "logs/<target_id>/wechat-channels-inspect/20260513T035126Z/schedule-open",
+    "video_create": "logs/<target_id>/wechat-channels-inspect/20260513T035210Z/video-create"
+  },
+  "known_risks": [
+    "Do not run multiple real inspections against the same persistent Chrome profile in parallel; the profile lock closes one browser.",
+    "Scan visible matching nodes instead of clicking the first selector match, because hidden template nodes can appear before real controls.",
+    "Screenshots and DOM snapshots are local diagnostics and may contain account display text; do not upload them to shared logs without review."
+  ]
+}

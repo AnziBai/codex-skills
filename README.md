@@ -112,7 +112,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\social-publisher\s
 Fill a platform draft:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\social-publisher\scripts\social-publisher.ps1" draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -Json
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\social-publisher\scripts\social-publisher.ps1" draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -Json
 ```
 
 Diagnose a failed run:

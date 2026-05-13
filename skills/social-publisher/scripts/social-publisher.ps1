@@ -1,6 +1,6 @@
 ﻿param(
   [Parameter(Position = 0, Mandatory = $true)]
-  [ValidateSet("validate", "publish", "resume", "retry-failed", "record-manual-result", "status", "copy-generate", "copy-select", "draft-plan", "setup-draft-fill", "draft-fill", "doctor", "preflight", "sample-run", "diagnose-failure")]
+  [ValidateSet("validate", "publish", "resume", "retry-failed", "record-manual-result", "status", "copy-generate", "copy-select", "draft-plan", "setup-draft-fill", "draft-fill", "doctor", "preflight", "sample-run", "diagnose-failure", "result-summary", "robustness-matrix", "inspect-collections", "inspect-wechat-channels")]
   [string]$Command,
 
   [string]$WorkDir,
@@ -12,7 +12,12 @@
   [string]$CandidateId,
   [string]$ProfileName,
   [string]$Platform,
+  [string]$Surface,
+  [string]$SourceRoot,
+  [string]$OutputRoot,
   [switch]$DryRun,
+  [switch]$ConfirmAccountFingerprint,
+  [switch]$ConfirmIntake,
   [switch]$Json
 )
 
@@ -99,8 +104,13 @@ function Invoke-DraftFillNode {
     [string]$TargetId,
     [string]$ProfileName,
     [string]$Platform,
+    [string]$Surface,
+    [string]$SourceRoot,
+    [string]$OutputRoot,
     [bool]$DryRun,
-    [bool]$JsonOutput
+    [bool]$ConfirmAccountFingerprint,
+    [bool]$JsonOutput,
+    [bool]$ConfirmIntake = $false
   )
   $runner = Join-Path (Split-Path -Parent $PSScriptRoot) "draft-fill\src\cli.mjs"
   if (!(Test-Path -LiteralPath $runner)) { throw "Draft-fill runner not found: $runner" }
@@ -109,8 +119,13 @@ function Invoke-DraftFillNode {
   if (-not [string]::IsNullOrWhiteSpace($TargetId)) { $args += @("--target-id", $TargetId) }
   if (-not [string]::IsNullOrWhiteSpace($ProfileName)) { $args += @("--profile-name", $ProfileName) }
   if ($DryRun) { $args += "--dry-run" }
+  if ($ConfirmAccountFingerprint) { $args += "--confirm-account-fingerprint" }
+  if ($ConfirmIntake) { $args += "--confirm-intake" }
   if ($JsonOutput) { $args += "--json" }
   if (-not [string]::IsNullOrWhiteSpace($Platform)) { $args += @("--platform", $Platform) }
+  if (-not [string]::IsNullOrWhiteSpace($Surface)) { $args += @("--surface", $Surface) }
+  if (-not [string]::IsNullOrWhiteSpace($SourceRoot)) { $args += @("--source-root", $SourceRoot) }
+  if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) { $args += @("--output-root", $OutputRoot) }
   & node @args
   exit $LASTEXITCODE
 }
@@ -161,6 +176,23 @@ function Get-WorkPath {
   if ([string]::IsNullOrWhiteSpace($Path)) { throw "-WorkDir is required." }
   if (!(Test-Path -LiteralPath $Path)) { throw "WorkDir not found: $Path" }
   return (Resolve-Path -LiteralPath $Path).Path
+}
+
+function Test-SafePathSegment {
+  param([string]$Value)
+  if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
+  if ($Value -eq "." -or $Value -eq "..") { return $false }
+  if ($Value.Contains("..") -or $Value.Contains(":")) { return $false }
+  if ($Value.IndexOfAny([char[]]@('\', '/')) -ge 0) { return $false }
+  if ([System.IO.Path]::IsPathRooted($Value)) { return $false }
+  return $true
+}
+
+function Assert-SafePathSegment {
+  param([string]$Value, [string]$Label)
+  if (-not (Test-SafePathSegment $Value)) {
+    throw "Validation: $Label must be a simple stable id without path separators or traversal: $Value"
+  }
 }
 
 function Resolve-WorkAsset {
@@ -519,7 +551,7 @@ function Get-DefaultDeclaration {
 
 function Get-DefaultMusic {
   param([string]$Platform)
-  if ($Platform -eq "douyin") {
+  if ($Platform -eq "douyin" -or $Platform -eq "wechat_channels") {
     return [ordered]@{ strategy = "first_recommended"; name = $null }
   }
   return [ordered]@{ strategy = "none"; name = $null }
@@ -566,6 +598,7 @@ function New-DraftPlan {
   $targetId = [string]$target.target_id
   $platform = [string]$target.platform
   if ([string]::IsNullOrWhiteSpace($targetId)) { throw "Validation: target_id is required." }
+  Assert-SafePathSegment $targetId "target_id"
   if ([string]::IsNullOrWhiteSpace($platform)) { throw "Validation: target.platform is required." }
   if (@("xiaohongshu", "douyin", "wechat_channels", "wechat_article") -notcontains $platform) {
     throw "Validation: draft-plan unsupported platform: $platform"
@@ -599,6 +632,7 @@ function New-DraftPlan {
     platform = $platform
     kind = [string]$target.kind
     account_id = [string]$target.account_id
+    account_fingerprint = [string](Get-PropertyValue $target "account_fingerprint" (Get-PropertyValue $manifest "account_fingerprint" ""))
     source_work_dir = $WorkRoot
     asset_paths = $assetPaths
     relative_asset_paths = Get-RelativeAssetPaths $manifest
@@ -766,6 +800,7 @@ function Validate-Manifest {
     $kind = [string]$target.kind
     $accountId = [string]$target.account_id
     if ([string]::IsNullOrWhiteSpace($targetId)) { $errors.Add("Target missing target_id."); continue }
+    if (-not (Test-SafePathSegment $targetId)) { $errors.Add("Target $targetId has unsafe target_id; use a simple stable id without path separators or traversal.") }
     if ($seen.ContainsKey($targetId)) { $errors.Add("Duplicate target_id: $targetId.") }
     $seen[$targetId] = $true
     if ([string]::IsNullOrWhiteSpace($platform)) { $errors.Add("Target $targetId missing platform.") }
@@ -884,6 +919,7 @@ function New-TargetResult {
 
 function New-ManualPackage {
   param([string]$WorkRoot, [object]$Manifest, [object]$Target, [string]$Reason, [object]$SelectedCopy)
+  Assert-SafePathSegment ([string]$Target.target_id) "target_id"
   $manualDir = Join-Path $WorkRoot "manual"
   New-Item -ItemType Directory -Force -Path $manualDir | Out-Null
   $path = Join-Path $manualDir ("$($Target.target_id).md")
@@ -931,6 +967,7 @@ function New-ManualPackage {
 
 function Invoke-MockPublish {
   param([string]$WorkRoot, [object]$Manifest, [object]$Target)
+  Assert-SafePathSegment ([string]$Target.target_id) "target_id"
   $logsDir = Join-Path $WorkRoot "logs"
   New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
   $raw = [ordered]@{
@@ -1048,36 +1085,61 @@ function Record-ManualResult {
 try {
   if ($Command -eq "setup-draft-fill") {
     Install-DraftFillDependencies
-    Invoke-DraftFillNode "setup" $null $null $ProfileName $Platform $false $Json
+    Invoke-DraftFillNode "setup" $null $null $ProfileName $Platform $Surface $SourceRoot $OutputRoot $false $ConfirmAccountFingerprint $Json
   }
 
   if ($Command -eq "doctor") {
     $workRootForDoctor = if ([string]::IsNullOrWhiteSpace($WorkDir)) { $null } else { Get-WorkPath $WorkDir }
-    Invoke-DraftFillNode "doctor" $workRootForDoctor $TargetId $ProfileName $Platform $DryRun $Json
+    Invoke-DraftFillNode "doctor" $workRootForDoctor $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json
   }
 
   if ($Command -eq "preflight") {
     if ([string]::IsNullOrWhiteSpace($WorkDir)) { throw "-WorkDir is required." }
     $workRootForPreflight = Get-WorkPath $WorkDir
     Ensure-DraftPlan $workRootForPreflight $TargetId
-    Invoke-DraftFillNode "preflight" $workRootForPreflight $TargetId $ProfileName $Platform $DryRun $Json
+    Invoke-DraftFillNode "preflight" $workRootForPreflight $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json
   }
 
   if ($Command -eq "sample-run") {
-    Invoke-DraftFillNode "sample-run" $WorkDir $TargetId $ProfileName $Platform $DryRun $Json
+    Invoke-DraftFillNode "sample-run" $WorkDir $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json
   }
 
   if ($Command -eq "diagnose-failure") {
     if ([string]::IsNullOrWhiteSpace($WorkDir)) { throw "-WorkDir is required." }
     $workRootForDiagnose = Get-WorkPath $WorkDir
-    Invoke-DraftFillNode "diagnose-failure" $workRootForDiagnose $TargetId $ProfileName $Platform $DryRun $Json
+    Invoke-DraftFillNode "diagnose-failure" $workRootForDiagnose $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json
+  }
+
+  if ($Command -eq "result-summary") {
+    if ([string]::IsNullOrWhiteSpace($WorkDir)) { throw "-WorkDir is required." }
+    $workRootForSummary = Get-WorkPath $WorkDir
+    Invoke-DraftFillNode "result-summary" $workRootForSummary $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json
+  }
+
+  if ($Command -eq "robustness-matrix") {
+    $workRootForMatrix = if ([string]::IsNullOrWhiteSpace($WorkDir)) { $null } else { Get-WorkPath $WorkDir }
+    Invoke-DraftFillNode "robustness-matrix" $workRootForMatrix $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json
+  }
+
+  if ($Command -eq "inspect-collections") {
+    if ([string]::IsNullOrWhiteSpace($WorkDir)) { throw "-WorkDir is required." }
+    $workRootForInspectCollections = Get-WorkPath $WorkDir
+    Ensure-DraftPlan $workRootForInspectCollections $TargetId
+    Invoke-DraftFillNode "inspect-collections" $workRootForInspectCollections $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json
   }
 
   if ($Command -eq "draft-fill") {
     if ([string]::IsNullOrWhiteSpace($WorkDir)) { throw "-WorkDir is required." }
     $workRootForFill = Get-WorkPath $WorkDir
     Ensure-DraftPlan $workRootForFill $TargetId
-    Invoke-DraftFillNode "draft-fill" $workRootForFill $TargetId $ProfileName $Platform $DryRun $Json
+    Invoke-DraftFillNode "draft-fill" $workRootForFill $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json $ConfirmIntake
+  }
+
+  if ($Command -eq "inspect-wechat-channels") {
+    if ([string]::IsNullOrWhiteSpace($WorkDir)) { throw "-WorkDir is required." }
+    $workRootForInspect = Get-WorkPath $WorkDir
+    Ensure-DraftPlan $workRootForInspect $TargetId
+    Invoke-DraftFillNode "inspect-wechat-channels" $workRootForInspect $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json
   }
 
   if ($Command -ne "status" -and [string]::IsNullOrWhiteSpace($WorkDir)) { throw "-WorkDir is required." }

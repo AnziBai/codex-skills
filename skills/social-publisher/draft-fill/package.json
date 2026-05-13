@@ -8,8 +8,13 @@
     "preflight": "node src/cli.mjs preflight --json",
     "sample-run": "node src/cli.mjs sample-run --json",
     "diagnose-failure": "node src/cli.mjs diagnose-failure --json",
-    "test": "node test/adapters.test.mjs",
-    "check": "node --check src/cli.mjs && node --check src/adapters.mjs && node --check src/utils.mjs"
+    "result-summary": "node src/cli.mjs result-summary --json",
+    "robustness-matrix": "node src/cli.mjs robustness-matrix --json",
+    "inspect-collections": "node src/cli.mjs inspect-collections --json",
+    "inspect-wechat-channels": "node src/cli.mjs inspect-wechat-channels --json",
+    "test": "node test/adapters.test.mjs && node test/result-summary.test.mjs && node test/robustness-matrix.test.mjs && node test/browser-profile.test.mjs",
+    "check": "node --check src/cli.mjs && node --check src/adapters.mjs && node --check src/platforms/common.mjs && node --check src/platforms/xiaohongshu.mjs && node --check src/platforms/douyin.mjs && node --check src/platforms/wechat-channels.mjs && node --check src/utils.mjs && node --check src/result-summary.mjs && node --check src/robustness-matrix.mjs && node --check src/browser-profile.mjs && node --check src/collection-cache.mjs",
+    "check:all": "npm run check && npm test && npm run robustness-matrix"
   },
   "dependencies": {
     "playwright": "^1.56.0"

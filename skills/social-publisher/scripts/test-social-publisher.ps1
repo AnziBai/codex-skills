@@ -16,6 +16,11 @@ function Write-JsonFile {
   $Value | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $Path -Encoding UTF8
 }
 
+function Utf8 {
+  param([string]$Base64)
+  return [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Base64))
+}
+
 function Invoke-Publisher {
   param([string[]]$PublisherArgs)
   $stdoutFile = [System.IO.Path]::GetTempFileName()
@@ -133,6 +138,63 @@ function New-CopyWork {
   })
 }
 
+function New-DraftScenarioWork {
+  param(
+    [string]$Root,
+    [string]$WorkId,
+    [string]$Platform,
+    [string]$Kind,
+    [string]$TargetId,
+    [string]$AccountId,
+    [string[]]$Images = @(),
+    [string]$Video = "",
+    [string]$PublishMode = "immediate",
+    [string]$PublishAt = $null,
+    [hashtable]$Overrides = @{},
+    [bool]$IncludeProductKnowledge = $true,
+    [string]$Title = "",
+    [string]$Body = ""
+  )
+  if ([string]::IsNullOrWhiteSpace($Title)) { $Title = Utf8 "5YGH56qB56C05Lul5ZCO5bqU6K+l55yL5LuA5LmI" }
+  if ([string]::IsNullOrWhiteSpace($Body)) { $Body = Utf8 "5bim6bG857O757uf5LiN5piv6L+95q+P5LiA5qyh56qB56C077yM6ICM5piv55So6YeP5Lu35YWz57O75Yik5pat5qaC546H5LyY5Yq/44CC" }
+  New-Item -ItemType Directory -Force -Path (Join-Path $Root "assets") | Out-Null
+  foreach ($image in $Images) {
+    "image-$image" | Set-Content -LiteralPath (Join-Path $Root $image) -Encoding UTF8
+  }
+  if (-not [string]::IsNullOrWhiteSpace($Video)) {
+    "video" | Set-Content -LiteralPath (Join-Path $Root $Video) -Encoding UTF8
+  }
+  $target = [ordered]@{
+    target_id = $TargetId
+    platform = $Platform
+    kind = $Kind
+    account_id = $AccountId
+    overrides = [ordered]@{}
+  }
+  foreach ($key in $Overrides.Keys) { $target.overrides[$key] = $Overrides[$key] }
+  Write-JsonFile (Join-Path $Root "manifest.json") ([ordered]@{
+    schema_version = "1.0"
+    work_id = $WorkId
+    status = "finished"
+    content_format = "markdown"
+    title = $Title
+    body = $Body
+    summary = if ($IncludeProductKnowledge) { Utf8 "5a696K6644CB5bim6bG85LiO6YeP5Lu35YWz57O75rWL6K+V" } else { "general lifestyle test" }
+    audience = if ($IncludeProductKnowledge) { Utf8 "5Lqk5piT5a2m5Lmg6ICF" } else { "general audience" }
+    selling_points = if ($IncludeProductKnowledge) { @((Utf8 "5bim6bG857O757uf"), (Utf8 "6YeP5Lu36aqM6K+B"), (Utf8 "5qaC546H5LyY5Yq/")) } else { @("simple story", "daily note") }
+    tone = (Utf8 "5LiT5Lia5L2G5pyJ5Lqy5ZKM5Yqb")
+    assets = [ordered]@{
+      cover = if ($Images.Count -gt 0) { $Images[0] } else { "" }
+      images = $Images
+      video = $Video
+    }
+    tags = if ($IncludeProductKnowledge) { @((Utf8 "5bim6bG8"), (Utf8 "6YeP5Lu3")) } else { @("daily", "note") }
+    publish_mode = $PublishMode
+    publish_at = $PublishAt
+    targets = @($target)
+  })
+}
+
 $root = Join-Path ([System.IO.Path]::GetTempPath()) ("social-publisher-test-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $root | Out-Null
 try {
@@ -185,6 +247,50 @@ try {
   Assert-True ($draftPlanRestore.Code -eq 0) "draft-plan restore after stale schedule test should exit 0"
   $invalidSelect = Invoke-Publisher -PublisherArgs @("copy-select", "-WorkDir", $copyWork, "-TargetId", "xhs-main-note", "-CandidateId", "missing-candidate", "-Json")
   Assert-True ($invalidSelect.Code -eq 2) "missing candidate should be validation error"
+
+  $xhsThreeImageWork = Join-Path $root "xhs-three-image-work"
+  New-Item -ItemType Directory -Force -Path $xhsThreeImageWork | Out-Null
+  New-DraftScenarioWork $xhsThreeImageWork "xhs-three-image-work" "xiaohongshu" "note" "xhs-three-image" "xhs_main" @("assets\1.jpg", "assets\2.jpg", "assets\3.jpg") "" "scheduled" "2026-05-14T21:30:00+08:00"
+  $xhsThreeImagePlan = Invoke-Publisher -PublisherArgs @("draft-plan", "-WorkDir", $xhsThreeImageWork, "-TargetId", "xhs-three-image", "-Json")
+  Assert-True ($xhsThreeImagePlan.Code -eq 0) "xhs three-image draft-plan should exit 0, got $($xhsThreeImagePlan.Code): stdout=$($xhsThreeImagePlan.Stdout) stderr=$($xhsThreeImagePlan.Stderr)"
+  $xhsThreeImageJson = $xhsThreeImagePlan.Stdout | ConvertFrom-Json
+  Assert-True (@($xhsThreeImageJson.asset_paths.images).Count -eq 3) "xhs three-image plan should preserve all 3 images"
+  Assert-True ($xhsThreeImageJson.relative_asset_paths.images[2] -eq "assets\3.jpg") "xhs three-image plan should preserve image order"
+  Assert-True ($xhsThreeImageJson.collection -eq (Utf8 "5a696K66")) "xhs collection should be inferred from broad product knowledge when absent"
+  Assert-True ($xhsThreeImageJson.declaration.mode -eq "original") "xhs should default to original declaration"
+  Assert-True ($xhsThreeImageJson.music.strategy -eq "none") "xhs should not inherit Douyin music behavior"
+  Assert-True ($xhsThreeImageJson.schedule.mode -eq "scheduled_exact") "xhs scheduled work should keep scheduled_exact mode"
+  $xhsPreflight = Invoke-Publisher -PublisherArgs @("preflight", "-WorkDir", $xhsThreeImageWork, "-TargetId", "xhs-three-image", "-ProfileName", "xhs-test", "-Json")
+  Assert-True ($xhsPreflight.Code -eq 0) "xhs preflight scenario should exit 0"
+  $xhsPreflightJson = $xhsPreflight.Stdout | ConvertFrom-Json
+  Assert-True (@($xhsPreflightJson.questions).Count -eq 0) "complete xhs scenario should not ask unresolved questions"
+
+  $douyinVideoWork = Join-Path $root "douyin-video-work"
+  New-Item -ItemType Directory -Force -Path $douyinVideoWork | Out-Null
+  New-DraftScenarioWork $douyinVideoWork "douyin-video-work" "douyin" "video" "douyin-video" "douyin_main" @() "assets\video.mp4"
+  $douyinVideoPlan = Invoke-Publisher -PublisherArgs @("draft-plan", "-WorkDir", $douyinVideoWork, "-TargetId", "douyin-video", "-Json")
+  Assert-True ($douyinVideoPlan.Code -eq 0) "douyin video draft-plan should exit 0, got $($douyinVideoPlan.Code): stdout=$($douyinVideoPlan.Stdout) stderr=$($douyinVideoPlan.Stderr)"
+  $douyinVideoJson = $douyinVideoPlan.Stdout | ConvertFrom-Json
+  Assert-True ([string]::IsNullOrWhiteSpace([string]$douyinVideoJson.asset_paths.cover)) "douyin video-only plan should allow missing cover"
+  Assert-True (@($douyinVideoJson.asset_paths.images).Count -eq 0) "douyin video-only plan should keep images empty"
+  Assert-True ([string]$douyinVideoJson.asset_paths.video -match "video\.mp4$") "douyin video-only plan should include absolute video path"
+  Assert-True ($douyinVideoJson.collection -eq (Utf8 "5a696K66")) "douyin collection should be inferred from broad product knowledge"
+  Assert-True ($douyinVideoJson.declaration.mode -eq "personal_opinion") "douyin should default to personal opinion declaration"
+  Assert-True ($douyinVideoJson.music.strategy -eq "first_recommended") "douyin should default to first recommended music"
+  Assert-True ($douyinVideoJson.schedule.mode -eq "immediate") "douyin immediate work should keep immediate schedule"
+
+  $incompleteXhsWork = Join-Path $root "incomplete-xhs-work"
+  New-Item -ItemType Directory -Force -Path $incompleteXhsWork | Out-Null
+  New-DraftScenarioWork $incompleteXhsWork "incomplete-xhs-work" "xiaohongshu" "note" "incomplete-xhs" "xhs_main" @("assets\1.jpg") "" "immediate" $null @{} $false "001-cover.png" "plain body"
+  $incompletePlan = Invoke-Publisher -PublisherArgs @("draft-plan", "-WorkDir", $incompleteXhsWork, "-TargetId", "incomplete-xhs", "-Json")
+  Assert-True ($incompletePlan.Code -eq 0) "incomplete xhs draft-plan should still generate for preflight questions"
+  $incompletePreflight = Invoke-Publisher -PublisherArgs @("preflight", "-WorkDir", $incompleteXhsWork, "-TargetId", "incomplete-xhs", "-ProfileName", "xhs-test", "-Json")
+  Assert-True ($incompletePreflight.Code -eq 0) "incomplete xhs preflight should exit 0 with questions"
+  $incompletePreflightJson = $incompletePreflight.Stdout | ConvertFrom-Json
+  $questionIds = @($incompletePreflightJson.questions | ForEach-Object { $_.id })
+  Assert-True ($questionIds -contains "title_optimization") "preflight should ask title optimization for file-like titles"
+  Assert-True ($questionIds -contains "collection") "preflight should ask collection when product knowledge cannot infer one"
+  Assert-True ($questionIds -contains "schedule") "preflight should ask scheduling choice for immediate work"
 
   $manualWork = Join-Path $root "manual-work"
   New-Item -ItemType Directory -Force -Path $manualWork | Out-Null

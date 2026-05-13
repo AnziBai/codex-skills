@@ -38,5 +38,7 @@ Do not guess from chat history when artifacts exist.
 
 - Douyin may accept a typed scheduled time but normalize it to a later allowed slot. Report the actual time.
 - Douyin upload is not complete until the URL is under `/content/post/` and the title field exists.
+- Douyin image upload must also verify visible page state such as `已添加5张图片`; file input success alone is not enough.
 - Xiaohongshu topic text in the editor is not enough; the platform topic token must be selected from the popup.
 - Xiaohongshu original declaration is complete only after the consent dialog closes and the switch remains enabled.
+- WeChat Channels must be mapped from its own logged-in page. Do not reuse Xiaohongshu or Douyin selectors by analogy.

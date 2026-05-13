@@ -160,6 +160,10 @@ For real Xiaohongshu publish tests, follow `references/xhs-real-publish-runbook.
 
 For real Douyin publish tests, follow `references/douyin-real-publish-runbook.md`. It captures the current production lessons: Douyin topics must be selected through the platform topic UI instead of pasted plain hashtags, `自主声明` is a Douyin-specific content declaration and not Xiaohongshu-style originality, collection/scheduling controls are in different page sections, and automation must stop before the human final publish click.
 
+## Real WeChat Channels Runbook
+
+For real WeChat Channels publish tests, follow `references/wechat-channels-real-publish-runbook.md`. This adapter is not production-ready until a logged-in profile has been inspected and the run log proves visible upload state, correct title/body fields, platform-specific tag/category/declaration handling, schedule behavior, and the final publish boundary.
+
 When a product knowledge base is available, use it to choose a broad collection. Do not choose only from surface title words. Prefer collections that can hold a reusable class of works instead of overly narrow one-off collections.
 
 For `概率的朋友` / Bridge Doctor / 宽论 content:

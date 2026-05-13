@@ -24,6 +24,7 @@ Completed on 2026-05-12:
 - `sample-run` passed for Xiaohongshu and Douyin.
 - `preflight` passed for the Douyin test work directory.
 - `diagnose-failure` returned clean status for the current Douyin run.
+- On 2026-05-13, Douyin upload validation was tightened so the run log must prove visible page state such as `已添加5张图片`.
 - `test-social-publisher.ps1` passed for the packaged repository copy.
 - Skill validation passed when run with UTF-8 enabled and the bundled Python 3.12.10.
 
@@ -49,7 +50,7 @@ Status: stable to the final publish boundary.
 
 Covered behavior:
 
-- Upload multi-image assets.
+- Upload multi-image assets and verify the page-visible uploaded image count.
 - Fill Chinese title and body.
 - Add each topic through the first suggestion.
 - Choose the Kuanlun collection.
@@ -81,6 +82,8 @@ Suggested next command after logging into the dedicated profile:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\social-publisher\scripts\social-publisher.ps1" draft-fill -WorkDir ".\wechat-channels-test-work" -TargetId "wechat-channels-main-image" -ProfileName "wechat-channels-main" -Json
 ```
+
+Read `skills/social-publisher/references/wechat-channels-real-publish-runbook.md` before implementing selectors.
 
 ## Engineering Rules To Preserve
 

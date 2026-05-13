@@ -175,6 +175,14 @@ try {
   Assert-True ($draftFillJson.profile_name -eq "xhs-test") "draft-fill should honor ProfileName"
   Assert-True (Test-Path (Join-Path $copyWork "draft-fill-result.json")) "draft-fill should create draft-fill-result.json"
   Assert-True (Test-Path (Join-Path $copyWork "logs\xhs-main-note\run.json")) "draft-fill should write target run log"
+  $stalePlanPath = Join-Path $copyWork "draft-plan.json"
+  $stalePlan = Get-Content -LiteralPath $stalePlanPath -Raw -Encoding UTF8 | ConvertFrom-Json
+  $stalePlan.schedule = [ordered]@{ mode = "scheduled_exact"; publish_at = "2000-01-01T00:00:00+08:00" }
+  Write-JsonFile $stalePlanPath $stalePlan
+  $staleDraftFill = Invoke-Publisher -PublisherArgs @("draft-fill", "-WorkDir", $copyWork, "-TargetId", "xhs-main-note", "-ProfileName", "xhs-test", "-DryRun", "-Json")
+  Assert-True ($staleDraftFill.Code -eq 2) "draft-fill should reject stale scheduled publish time"
+  $draftPlanRestore = Invoke-Publisher -PublisherArgs @("draft-plan", "-WorkDir", $copyWork, "-TargetId", "xhs-main-note", "-Json")
+  Assert-True ($draftPlanRestore.Code -eq 0) "draft-plan restore after stale schedule test should exit 0"
   $invalidSelect = Invoke-Publisher -PublisherArgs @("copy-select", "-WorkDir", $copyWork, "-TargetId", "xhs-main-note", "-CandidateId", "missing-candidate", "-Json")
   Assert-True ($invalidSelect.Code -eq 2) "missing candidate should be validation error"
 

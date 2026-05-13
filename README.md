@@ -63,8 +63,8 @@ As of 2026-05-12:
 | Platform | Status | Covered |
 | --- | --- | --- |
 | Xiaohongshu | Stable to final publish boundary | Image upload, Chinese title/body, topic token selection, collection, original declaration, content declaration, optional schedule, publish-boundary verification |
-| Douyin | Stable to final publish boundary | Multi-image upload, title/body, topic token selection, collection, personal-view declaration, first recommended music, schedule handling, publish-boundary verification |
-| WeChat Channels | Pending | First exploratory run stopped at login; adapter implementation is next |
+| Douyin | Stable to final publish boundary | Multi-image upload with visible count verification, title/body, topic token selection, collection, personal-view declaration, first recommended music, schedule handling, publish-boundary verification |
+| WeChat Channels | Pending | First exploratory run stopped at login; logged-in page mapping is next |
 
 ## Repository Layout
 

@@ -116,6 +116,14 @@ export async function validatePlan(plan, workDir, targetId) {
     if (!path.isAbsolute(asset)) errors.push(`asset path is not absolute: ${asset}`);
     else if (!(await exists(asset))) errors.push(`asset path not found: ${asset}`);
   }
+  if (plan.schedule && plan.schedule.mode && plan.schedule.mode !== "immediate" && plan.schedule.publish_at) {
+    const scheduledAt = new Date(plan.schedule.publish_at);
+    if (Number.isNaN(scheduledAt.getTime())) {
+      errors.push(`schedule publish_at is not a valid datetime: ${plan.schedule.publish_at}`);
+    } else if (scheduledAt.getTime() <= Date.now()) {
+      errors.push(`schedule publish_at is in the past: ${plan.schedule.publish_at}`);
+    }
+  }
   if (workDir && path.resolve(workDir) !== path.resolve(plan.source_work_dir || workDir)) {
     // Non-fatal in case the work directory was moved; assets remain authoritative.
   }

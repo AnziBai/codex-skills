@@ -153,6 +153,17 @@ async function uploadFiles(page, plan, selector, name) {
     if (uploadState.status !== STATUS.done) {
       return step(name, uploadState.status, uploadState.message, { files });
     }
+    if (plan.platform === "douyin" && Array.isArray(plan.asset_paths?.images) && plan.asset_paths.images.length > 0) {
+      const visibleUpload = await verifyDouyinUploadedImages(page, files.length);
+      if (visibleUpload.status !== STATUS.done) {
+        return step(name, visibleUpload.status, visibleUpload.message, { files, ...visibleUpload.details });
+      }
+      return step(name, STATUS.done, `Uploaded ${files.length} file(s); page shows ${visibleUpload.details.visible_count} image(s).`, {
+        files,
+        visible_count: visibleUpload.details.visible_count,
+        visible_marker: visibleUpload.details.visible_marker
+      });
+    }
     return step(name, STATUS.done, `Uploaded ${files.length} file(s).`, { files });
   } catch (error) {
     return step(name, STATUS.failed, `Upload failed: ${error.message}`, { files });
@@ -188,6 +199,38 @@ async function waitForDouyinPostEditor(page, timeoutMs) {
     await page.waitForTimeout(1000);
   }
   return false;
+}
+
+async function verifyDouyinUploadedImages(page, expectedCount) {
+  const deadline = Date.now() + 30000;
+  const exactCountPattern = new RegExp(`已添加\\s*${expectedCount}\\s*张图片`);
+  let lastExcerpt = "";
+  while (Date.now() < deadline) {
+    const text = await page.locator("body").innerText({ timeout: 5000 }).catch(() => "");
+    const marker = text.match(/已添加\s*\d+\s*张图片/);
+    if (marker) {
+      const visibleCount = Number((marker[0].match(/\d+/) || [])[0]);
+      if (exactCountPattern.test(marker[0])) {
+        return {
+          status: STATUS.done,
+          message: `Douyin page confirms ${expectedCount} uploaded image(s).`,
+          details: { visible_count: visibleCount, visible_marker: marker[0] }
+        };
+      }
+      return {
+        status: STATUS.needsHuman,
+        message: `Douyin page shows ${visibleCount} uploaded image(s), expected ${expectedCount}.`,
+        details: { visible_count: visibleCount, visible_marker: marker[0] }
+      };
+    }
+    lastExcerpt = text.slice(0, 500);
+    await page.waitForTimeout(1000);
+  }
+  return {
+    status: STATUS.needsHuman,
+    message: `Douyin upload count was not visible after upload; expected ${expectedCount} image(s).`,
+    details: { visible_count: 0, visible_marker: "", text_excerpt: lastExcerpt }
+  };
 }
 
 async function waitForUploadProgress(page) {

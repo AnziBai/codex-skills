@@ -47,6 +47,10 @@ Observed on 2026-05-14 during the `21-40` Xiaohongshu batch intake:
   the one the operator saw and considered logged in.
 - Hidden or background `Start-Process` launches made this worse because the
   child browser could be running without an obvious foreground window.
+- The same confusion repeated on 2026-05-14 when a matching Xiaohongshu URL was
+  misreported as entering the publish page. A URL or `page_signature` match is
+  not enough; only visible logged-in composer controls prove publish-editor
+  readiness.
 - The immediate root cause was confirmed later: an unquoted
   `--user-data-dir` value under the workspace path `New project 5` was parsed
   by Chrome as a truncated path ending before the first space, so automation and

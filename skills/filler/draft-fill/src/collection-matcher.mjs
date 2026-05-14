@@ -61,7 +61,7 @@ export function chooseCollection({ plan, collections, taxonomy }) {
     return decision("skipped_by_plan", "no_collection_requested", plan, null, 0, "none", [], "No collection requested in plan.");
   }
   if (options.length === 0) {
-    return decision("needs_human", "no_visible_collections", plan, null, 0, "none", [], "No visible collection options were available.");
+    return decision("done", "no_visible_collections", plan, null, 0, "none", [], "No visible collection options were available; continuing without selecting a collection.");
   }
 
   const exact = options.find((option) => option.key === normalizeKey(requested));
@@ -90,7 +90,7 @@ export function chooseCollection({ plan, collections, taxonomy }) {
   candidates.sort((left, right) => right.score - left.score || left.selected_collection.localeCompare(right.selected_collection, "zh-Hans-CN"));
   const top = candidates[0];
   if (!top || top.score < MIN_HIGH_CONFIDENCE_SCORE) {
-    return decision("needs_human", "no_suitable_collection", plan, null, top ? top.confidence : 0, "none", candidates.slice(0, 3), "No existing collection crossed the high-confidence threshold.");
+    return decision("done", "no_suitable_collection", plan, null, top ? top.confidence : 0, "none", candidates.slice(0, 3), "No existing collection crossed the high-confidence threshold; continuing without selecting a collection.");
   }
   const second = candidates.find((item) => item.selected_collection !== top.selected_collection);
   if (second && top.score - second.score < MIN_CONFIDENCE_MARGIN) {
@@ -100,12 +100,24 @@ export function chooseCollection({ plan, collections, taxonomy }) {
 }
 
 export function planWithResolvedCollection(plan, collectionDecision) {
-  if (!collectionDecision || collectionDecision.status !== "done" || !collectionDecision.selected_collection) return plan;
+  if (!collectionDecision || collectionDecision.status !== "done") return plan;
+  if (!collectionDecision.selected_collection && shouldSkipCollectionSelection(collectionDecision.reason_code)) {
+    return {
+      ...plan,
+      collection: null,
+      collection_decision: collectionDecision
+    };
+  }
+  if (!collectionDecision.selected_collection) return plan;
   return {
     ...plan,
     collection: collectionDecision.selected_collection,
     collection_decision: collectionDecision
   };
+}
+
+function shouldSkipCollectionSelection(reasonCode) {
+  return ["no_suitable_collection", "no_visible_collections"].includes(reasonCode);
 }
 
 function resolveTaxonomyPath({ taxonomyPath, workDir }) {

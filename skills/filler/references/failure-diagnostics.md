@@ -67,6 +67,17 @@ state, URLs, collection names, or unpublished content.
 | `schedule` | Requested time invalid or platform-adjusted | Report actual time; reject earlier or past times. |
 | `publish_boundary` | Final boundary not proven | Stop. A human must verify the draft before public publish. |
 
+## URL Match Is Not Composer Readiness
+
+Do not diagnose a matching platform URL as "entered the publish page" by itself.
+`page_signature` only proves the browser reached a platform route. Before
+claiming a logged-in publish editor is available, verify visible composer
+signals in the same profile: upload controls, editable title/body fields, or the
+platform-specific draft surface. If the browser shows a login page, blank shell,
+account chooser, or a route without composer controls, report login/profile
+state as unverified and ask the operator to open the exact profile with
+`open-profile` or `login-profile`.
+
 ## Profile Lock Recovery
 
 Real browser commands create `profiles/<profile>.draft-fill.lock`.

@@ -291,13 +291,19 @@ const WECHAT_CHANNELS_TEXT = {
 };
 
 const WECHAT_CHANNELS_COLLECTION_LABELS = ["\u6dfb\u52a0\u5230\u5408\u96c6", "\u5408\u96c6"];
-const WECHAT_CHANNELS_COLLECTION_SELECTORS = [
+const WECHAT_CHANNELS_COLLECTION_TRIGGER_SELECTORS = [
   ".post-album-wrap",
   ".post-album-display-wrap",
-  ".weui-desktop-popover li",
-  ".weui-desktop-popover [role='option']",
-  ".weui-desktop-dialog li",
-  "[role='listbox'] [role='option']"
+  ".post-album-wrap .weui-desktop-select",
+  ".post-album-display-wrap .weui-desktop-select"
+];
+const WECHAT_CHANNELS_COLLECTION_SELECTORS = [
+  ".weui-desktop-popover:visible li",
+  ".weui-desktop-popover:visible [role='option']",
+  ".weui-desktop-popover:visible [class*='option']",
+  ".weui-desktop-dialog:visible li",
+  ".weui-desktop-dialog:visible [role='option']",
+  "[role='listbox']:visible [role='option']"
 ];
 
 const WECHAT_CHANNELS_TITLE_SELECTOR = [
@@ -544,11 +550,32 @@ async function readWechatChannelsTitle(frame) {
 }
 
 async function readWechatChannelsTopicEvidence(frame, tags) {
-  return frame.evaluate((tags) => {
-    const text = document.body?.innerText || "";
-    const tokens = Array.from(document.querySelectorAll(".hl.topic, span.hl, [class*='topic']")).map((node) => (node.innerText || node.textContent || "").trim()).filter(Boolean);
-    const normalizedTags = tags.map((tag) => String(tag || "").replace(/^#+/, "").trim()).filter(Boolean);
-    const matchedTags = normalizedTags.filter((tag) => text.includes(tag) || tokens.some((token) => token.includes(tag)));
+  return frame.evaluate(({ selectors, tags }) => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+    };
+    const resolveTarget = (node) => {
+      if (!node) return null;
+      if (node.matches?.("input, textarea, [contenteditable]")) return node;
+      return node.querySelector?.(".input-editor, [contenteditable], textarea, input") || node;
+    };
+    let editor = null;
+    for (const selector of selectors) {
+      const node = Array.from(document.querySelectorAll(selector)).find((candidate) => visible(candidate) || visible(resolveTarget(candidate)));
+      editor = resolveTarget(node);
+      if (editor) break;
+    }
+    const text = editor
+      ? (editor instanceof HTMLInputElement || editor instanceof HTMLTextAreaElement ? editor.value || "" : editor.innerText || editor.textContent || "")
+      : document.body?.innerText || "";
+    const tokenNodes = editor ? Array.from(editor.querySelectorAll(".hl.topic, span.hl, [class*='topic'], [class*='tag'], a")) : [];
+    const tokens = tokenNodes.map((node) => (node.innerText || node.textContent || "").trim()).filter(Boolean);
+    const normalizedTags = tags.map((tag) => String(tag || "").replace(/^#+/, "").replace(/[^\p{L}\p{N}_]/gu, "").trim()).filter(Boolean);
+    const matchedTags = normalizedTags.filter((tag) => tokens.some((token) => token.includes(tag)));
+    const plainMatchedTags = normalizedTags.filter((tag) => new RegExp(`#\\s*${tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=\\s|$|[，。！？,.!?])`, "u").test(text));
     return {
       token_count: tokens.length,
       token_lengths: tokens.map((token) => token.length),
@@ -556,36 +583,131 @@ async function readWechatChannelsTopicEvidence(frame, tags) {
       text_length: text.length,
       text_line_count: text ? text.split(/\r\n|\r|\n/).length : 0,
       matched_tag_count: matchedTags.length,
-      all_tags_matched: matchedTags.length === normalizedTags.length
+      plain_text_matched_tag_count: plainMatchedTags.length,
+      all_tags_matched: matchedTags.length === normalizedTags.length,
+      all_plain_tags_matched: plainMatchedTags.length === normalizedTags.length
     };
-  }, tags).catch((error) => ({ token_count: 0, token_lengths: [], text_present: false, text_length: 0, text_line_count: 0, matched_tag_count: 0, all_tags_matched: false, error: error.message }));
+  }, { selectors: WECHAT_CHANNELS_DESCRIPTION_SELECTORS, tags }).catch((error) => ({
+    token_count: 0,
+    token_lengths: [],
+    text_present: false,
+    text_length: 0,
+    text_line_count: 0,
+    matched_tag_count: 0,
+    plain_text_matched_tag_count: 0,
+    all_tags_matched: false,
+    all_plain_tags_matched: false,
+    error: error.message
+  }));
 }
 
 async function selectWechatChannelsTopics(page, frame, tags) {
   if (!tags || tags.length === 0) return step("topics", STATUS.skipped, "No tags in plan.");
   const editor = await waitForWechatChannelsDescriptionEditor(frame, 5000);
   if (!editor.found) return step("topics", STATUS.needsHuman, "WeChat Channels description editor not found for topic insertion.");
-  const current = await readWechatChannelsEditorText(frame);
-  const next = appendPlainHashTags(current, tags);
-  await replaceWechatChannelsEditorText(frame, next);
-  await page.waitForTimeout(700);
-  const evidence = await readWechatChannelsTopicEvidence(frame, tags);
   const normalizedTags = tags.map(normalizeXhsTag).filter(Boolean);
+  const typed = await typeWechatChannelsTopicTokens(page, frame, normalizedTags);
+  if (!typed.ok) {
+    return step("topics", STATUS.needsHuman, typed.message, {
+      requested_tag_count: normalizedTags.length,
+      typed_tag_count: typed.typed_tag_count || 0,
+      error: typed.error || null
+    });
+  }
+  await page.waitForTimeout(900);
+  const evidence = await readWechatChannelsTopicEvidence(frame, normalizedTags);
   const readback = await readWechatChannelsEditorText(frame);
   const readbackMatches = normalizedTags.filter((tag) => readback.includes(`#${tag}`)).length;
-  const ok = evidence.all_tags_matched || readbackMatches === normalizedTags.length;
-  return step("topics", ok ? STATUS.done : STATUS.needsHuman, ok ? "WeChat Channels topics inserted in description." : "WeChat Channels topics were targeted, but readback did not contain every tag.", {
+  const ok = wechatChannelsTopicEvidenceOk(evidence, normalizedTags);
+  return step("topics", ok ? STATUS.done : STATUS.needsHuman, ok ? "WeChat Channels topics inserted and verified as platform topic tokens." : "WeChat Channels topics were typed, but did not become verified topic tokens.", {
     ...evidence,
     ...redactedTextEvidence(readback, "editor_readback"),
     readback_matched_tag_count: readbackMatches,
-    requested_tag_count: normalizedTags.length
+    requested_tag_count: normalizedTags.length,
+    typed_tag_count: typed.typed_tag_count
   });
+}
+
+export function wechatChannelsTopicEvidenceOk(evidence, tags) {
+  const count = (tags || []).map(normalizeXhsTag).filter(Boolean).length;
+  return count === 0 || Number(evidence?.matched_tag_count || 0) === count;
+}
+
+async function typeWechatChannelsTopicTokens(page, frame, normalizedTags) {
+  try {
+    const before = await readWechatChannelsTopicEvidence(frame, normalizedTags);
+    const missing = normalizedTags.filter((tag) => !topicEvidenceHasTag(before, tag));
+    if (missing.length === 0) return { ok: true, typed_tag_count: 0 };
+    const focused = await focusWechatChannelsEditorAtEnd(frame);
+    if (!focused.found) return { ok: false, message: "WeChat Channels description editor could not be focused for topic typing.", error: focused.error || null };
+    const current = await readWechatChannelsEditorText(frame);
+    if (current.trim() && !/\s$/.test(current)) {
+      await page.keyboard.press("Enter");
+      await page.keyboard.press("Enter");
+    }
+    let typed = 0;
+    for (const tag of missing) {
+      await focusWechatChannelsEditorAtEnd(frame);
+      await page.keyboard.insertText(`#${tag}`);
+      await page.keyboard.press("Space");
+      typed += 1;
+      await page.waitForTimeout(650);
+    }
+    return { ok: true, typed_tag_count: typed };
+  } catch (error) {
+    return { ok: false, message: `WeChat Channels topic typing failed: ${error.message.split("\n")[0]}`, error: error.message.split("\n")[0] };
+  }
+}
+
+function topicEvidenceHasTag(evidence, tag) {
+  return Number(evidence?.matched_tag_count || 0) > 0 && (evidence?.all_tags_matched || false)
+    ? true
+    : false;
+}
+
+async function focusWechatChannelsEditorAtEnd(frame) {
+  const result = await frame.evaluate((selectors) => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+    };
+    const resolveTarget = (node) => {
+      if (!node) return null;
+      if (node.matches?.("input, textarea, [contenteditable]")) return node;
+      return node.querySelector?.(".input-editor, [contenteditable], textarea, input") || node;
+    };
+    let target = null;
+    for (const selector of selectors) {
+      const node = Array.from(document.querySelectorAll(selector)).find((candidate) => visible(candidate) || visible(resolveTarget(candidate)));
+      target = resolveTarget(node);
+      if (target) break;
+    }
+    if (!target) return { found: false };
+    target.scrollIntoView({ block: "center", inline: "center" });
+    target.focus();
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+      const end = String(target.value || "").length;
+      target.setSelectionRange(end, end);
+    } else {
+      const range = document.createRange();
+      range.selectNodeContents(target);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    return { found: true };
+  }, WECHAT_CHANNELS_DESCRIPTION_SELECTORS).catch((error) => ({ found: false, error: error.message }));
+  await frame.page().waitForTimeout(200);
+  return result;
 }
 
 async function selectWechatChannelsCollection(frame, collection) {
   if (!collection) return step("collection", STATUS.skipped, "No value in plan.");
   try {
-    const opened = await clickWechatChannelsAnyFormControl(frame, WECHAT_CHANNELS_COLLECTION_LABELS, [".post-album-wrap", ".post-album-display-wrap"]);
+    const opened = await clickWechatChannelsCollectionTrigger(frame);
     if (!opened) return step("collection", STATUS.needsHuman, "WeChat Channels collection dropdown trigger not found.");
     await frame.page().waitForTimeout(800);
     const options = normalizeCollectionNames(await readVisibleFrameCollectionOptionTexts(frame, WECHAT_CHANNELS_COLLECTION_SELECTORS));
@@ -633,7 +755,8 @@ export function chooseWechatChannelsCollectionName(options, requestedCollection)
 }
 
 async function clickWechatChannelsCollectionOption(frame, collectionName) {
-  const exact = frame.getByText(String(collectionName), { exact: true }).last();
+  const dropdown = frame.locator(".weui-desktop-popover:visible, .weui-desktop-dialog:visible, [role='listbox']:visible").last();
+  const exact = dropdown.getByText(String(collectionName), { exact: true }).last();
   if ((await exact.count().catch(() => 0)) > 0) {
     await exact.click({ timeout: 5000, force: true });
     return true;
@@ -1150,6 +1273,145 @@ async function clickWechatChannelsAnyFormControl(frame, labels, selectors) {
   return false;
 }
 
+async function clickWechatChannelsCollectionTrigger(frame) {
+  await waitForWechatChannelsComposerIdle(frame, 10000);
+  for (const selector of WECHAT_CHANNELS_COLLECTION_TRIGGER_SELECTORS) {
+    const trigger = frame.locator(selector).filter({ hasText: /选择合集|添加到合集|合集/ }).first();
+    if ((await trigger.count().catch(() => 0)) > 0) {
+      await trigger.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
+      await trigger.click({ timeout: 5000, force: true }).catch(() => {});
+      if (await waitForWechatChannelsCollectionDropdown(frame, 2500)) return true;
+    }
+  }
+  const clickedByPlaceholder = await clickWechatChannelsVisibleText(frame, "选择合集");
+  if (clickedByPlaceholder && await waitForWechatChannelsCollectionDropdown(frame, 2500)) return true;
+  const clickedByLabel = await clickWechatChannelsFormControl(frame, "\u6dfb\u52a0\u5230\u5408\u96c6", WECHAT_CHANNELS_COLLECTION_TRIGGER_SELECTORS);
+  if (clickedByLabel && await waitForWechatChannelsCollectionDropdown(frame, 2500)) return true;
+  const clickedByEvents = await frame.evaluate(({ labels, selectors }) => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+    };
+    const labelNode = Array.from(document.querySelectorAll(".label, span, div")).find((node) => {
+      const text = (node.innerText || node.textContent || "").trim();
+      return labels.includes(text) && visible(node);
+    });
+    if (!labelNode) return false;
+    const row = labelNode.closest(".form-item, .post-album-wrap") || labelNode.parentElement;
+    if (!row) return false;
+    const target = selectors.flatMap((selector) => Array.from(row.querySelectorAll(selector))).find(visible)
+      || Array.from(row.querySelectorAll("button, [role='button'], [class*='select'], [class*='album'], [class*='arrow'], div, span"))
+        .filter(visible)
+        .find((node) => /选择合集|添加到合集|合集/.test((node.innerText || node.textContent || "").trim()));
+    if (!target) return false;
+    target.scrollIntoView({ block: "center", inline: "center" });
+    const rect = target.getBoundingClientRect();
+    const init = { bubbles: true, cancelable: true, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 };
+    for (const type of ["pointerdown", "mousedown", "mouseup", "click"]) {
+      target.dispatchEvent(new MouseEvent(type, init));
+    }
+    return true;
+  }, { labels: WECHAT_CHANNELS_COLLECTION_LABELS, selectors: WECHAT_CHANNELS_COLLECTION_TRIGGER_SELECTORS }).catch(() => false);
+  if (clickedByEvents && await waitForWechatChannelsCollectionDropdown(frame, 3000)) return true;
+  const clickedByGeometry = await clickWechatChannelsCollectionTriggerByGeometry(frame);
+  return clickedByGeometry && await waitForWechatChannelsCollectionDropdown(frame, 3000);
+}
+
+async function clickWechatChannelsCollectionTriggerByGeometry(frame) {
+  return frame.evaluate(({ labels }) => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return rect.width > 0
+        && rect.height > 0
+        && style.display !== "none"
+        && style.visibility !== "hidden"
+        && Number(style.opacity || 1) > 0;
+    };
+    const textOf = (node) => (node.innerText || node.textContent || node.getAttribute?.("placeholder") || "").trim();
+    const classOf = (node) => String(node.className || "");
+    const labelNode = Array.from(document.querySelectorAll(".label, label, span, div")).find((node) => {
+      const text = textOf(node);
+      return labels.includes(text) && visible(node);
+    });
+    if (!labelNode) return false;
+    labelNode.scrollIntoView({ block: "center", inline: "center" });
+    const labelRect = labelNode.getBoundingClientRect();
+    const centerY = labelRect.top + labelRect.height / 2;
+    const row = labelNode.closest(".form-item, .post-album-wrap, .post-album-display-wrap") || labelNode.parentElement || document.body;
+    const nodes = Array.from(new Set([
+      ...Array.from(row.querySelectorAll("button, [role='button'], input, [class*='select'], [class*='album'], [class*='arrow'], [class*='dropdown'], div, span")),
+      ...Array.from(document.querySelectorAll(".post-album-wrap, .post-album-display-wrap, .weui-desktop-select, [class*='album'][class*='wrap'], [class*='select']"))
+    ]));
+    const scored = nodes
+      .filter((node) => node !== labelNode && visible(node))
+      .map((node) => {
+        const rect = node.getBoundingClientRect();
+        const text = textOf(node);
+        const klass = classOf(node);
+        const toRight = rect.left >= labelRect.right - 8;
+        const overlaps = rect.top <= centerY + 36 && rect.bottom >= centerY - 36;
+        const hasCue = /选择合集|添加到合集|合集/.test(text)
+          || /select|album|arrow|drop/i.test(klass)
+          || /选择合集|添加到合集|合集/.test(node.getAttribute?.("placeholder") || "");
+        let score = 0;
+        if (toRight) score += 40;
+        if (overlaps) score += 40;
+        if (/选择合集/.test(text)) score += 80;
+        else if (/添加到合集|合集/.test(text)) score += 35;
+        if (/select|album/i.test(klass)) score += 35;
+        if (/arrow|drop/i.test(klass)) score += 15;
+        score -= Math.min(60, Math.abs((rect.top + rect.height / 2) - centerY));
+        score -= Math.min(30, Math.max(0, rect.left - labelRect.right) / 20);
+        return { node, rect, score, toRight, overlaps, hasCue };
+      })
+      .filter((item) => item.hasCue
+        && item.overlaps
+        && item.rect.width >= 16
+        && item.rect.height >= 16
+        && item.rect.height <= 120
+        && item.rect.left >= labelRect.left - 4
+        && item.rect.right <= window.innerWidth + 12
+        && item.rect.bottom <= window.innerHeight + 12)
+      .sort((a, b) => b.score - a.score || a.rect.left - b.rect.left);
+    const target = scored[0]?.node;
+    if (!target) return false;
+    const rect = target.getBoundingClientRect();
+    const clientX = Math.max(rect.left + 8, Math.min(rect.right - 8, rect.right - 24));
+    const clientY = Math.max(rect.top + 8, Math.min(rect.bottom - 8, centerY));
+    const eventTarget = document.elementFromPoint(clientX, clientY) || target;
+    const init = { bubbles: true, cancelable: true, clientX, clientY };
+    for (const type of ["pointerdown", "mousedown", "mouseup", "click"]) {
+      eventTarget.dispatchEvent(new MouseEvent(type, init));
+      if (eventTarget !== target) target.dispatchEvent(new MouseEvent(type, init));
+    }
+    return true;
+  }, { labels: WECHAT_CHANNELS_COLLECTION_LABELS }).catch(() => false);
+}
+
+async function waitForWechatChannelsComposerIdle(frame, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const initializing = await frame.evaluate(() => /页面初始化中|初始化中|加载中/.test(document.body?.innerText || "")).catch(() => false);
+    if (!initializing) return true;
+    await frame.page().waitForTimeout(500);
+  }
+  return false;
+}
+
+async function waitForWechatChannelsCollectionDropdown(frame, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const visible = await frame.locator(".weui-desktop-popover:visible, .weui-desktop-dialog:visible, [role='listbox']:visible").count().then((count) => count > 0).catch(() => false);
+    if (visible) return true;
+    await frame.page().waitForTimeout(250);
+  }
+  return false;
+}
+
 async function clickWechatChannelsVisibleText(frame, text) {
   const deadline = Date.now() + 6000;
   while (Date.now() < deadline) {
@@ -1210,7 +1472,7 @@ export async function inspectWechatChannelsCollections(page, plan, logDir) {
     steps.push(await openWechatChannelsComposer(page, plan));
     if (steps[steps.length - 1].status === STATUS.done) {
       const frame = await wechatContentFrame(page);
-      const opened = await clickWechatChannelsAnyFormControl(frame, WECHAT_CHANNELS_COLLECTION_LABELS, [".post-album-wrap", ".post-album-display-wrap"]);
+      const opened = await clickWechatChannelsCollectionTrigger(frame);
       steps.push(step("open_collection_dropdown", opened ? STATUS.done : STATUS.needsHuman, opened ? "WeChat Channels collection dropdown opened." : "WeChat Channels collection dropdown trigger not found."));
       const values = opened ? await readVisibleFrameCollectionOptionTexts(frame, WECHAT_CHANNELS_COLLECTION_SELECTORS) : [];
       const collections = normalizeCollectionNames(values);

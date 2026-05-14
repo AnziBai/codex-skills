@@ -79,7 +79,7 @@ const noMatch = chooseCollection({
   collections: ["美食", "育儿"],
   taxonomy
 });
-assert.equal(noMatch.status, "needs_human");
+assert.equal(noMatch.status, "done");
 assert.equal(noMatch.reason_code, "no_suitable_collection");
 assert.equal(noMatch.selected_collection, null);
 
@@ -106,6 +106,11 @@ assert.equal(adapterPlan.collection, "宽论长期合集");
 assert.equal(adapterPlan.collection_decision.selected_collection, "宽论长期合集");
 assert.equal(originalPlan.collection, "宽论");
 assert.equal("collection_decision" in originalPlan, false);
+
+const skippedCollectionPlan = planWithResolvedCollection(originalPlan, noMatch);
+assert.notEqual(skippedCollectionPlan, originalPlan);
+assert.equal(skippedCollectionPlan.collection, null);
+assert.equal(skippedCollectionPlan.collection_decision.reason_code, "no_suitable_collection");
 
 const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "collection-taxonomy-test-"));
 try {

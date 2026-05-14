@@ -351,6 +351,7 @@ async function collectionDecisionStepForPlan({ plan, cacheStatus, workDir }) {
 
 function sanitizeCollectionDecision(decision) {
   return {
+    status: decision.status,
     reason_code: decision.reason_code,
     requested_collection: decision.requested_collection,
     selected_collection: decision.selected_collection,
@@ -1507,22 +1508,31 @@ async function draftFill(args) {
     steps.push(step("browser_profile", STATUS.done, `Using browser profile: ${profileName}`, { profile_name: profileName }));
     let adapterPlan = plan;
     if (plan.collection) {
-      const cacheStatus = await readCollectionCache({
-        profileName,
-        platform: plan.platform,
-        accountFingerprint: accountFingerprintFromPlan(plan)
-      });
-      const collectionStep = await collectionDecisionStepForPlan({ plan, cacheStatus, workDir });
-      steps.push(collectionStep);
-      if (collectionStep.status !== STATUS.done) {
-        const result = resultPayload(plan, steps, profileName, false);
-        await writeRunResult(workDir, targetId, result);
-        if (profile?.context) await profile.context.close().catch(() => {});
-        if (profile?.closed) await profile.closed.catch(() => {});
-        if (profile?.release) await profile.release().catch(() => {});
-        return exit(4, result, args.json);
+      if (plan.platform === "xiaohongshu" || plan.platform === "wechat_channels" || plan.platform === "douyin") {
+        steps.push(step("collection_decision", STATUS.done, `${composerCollectionPlatformName(plan.platform)} collection selection is handled inside the uploaded composer.`, {
+          reason_code: "composer_visible_collection_selection",
+          requested_collection: plan.collection,
+          selected_collection: plan.collection,
+          match_type: "composer_exact"
+        }));
+      } else {
+        const cacheStatus = await readCollectionCache({
+          profileName,
+          platform: plan.platform,
+          accountFingerprint: accountFingerprintFromPlan(plan)
+        });
+        const collectionStep = await collectionDecisionStepForPlan({ plan, cacheStatus, workDir });
+        steps.push(collectionStep);
+        if (collectionStep.status !== STATUS.done) {
+          const result = resultPayload(plan, steps, profileName, false);
+          await writeRunResult(workDir, targetId, result);
+          if (profile?.context) await profile.context.close().catch(() => {});
+          if (profile?.closed) await profile.closed.catch(() => {});
+          if (profile?.release) await profile.release().catch(() => {});
+          return exit(4, result, args.json);
+        }
+        adapterPlan = planWithResolvedCollection(plan, collectionStep.details);
       }
-      adapterPlan = planWithResolvedCollection(plan, collectionStep.details);
     }
     const adapterSteps = await adapter.run({ page, plan: adapterPlan, logDir, profileName, workDir });
     steps.push(...adapterSteps);
@@ -1534,13 +1544,17 @@ async function draftFill(args) {
     });
     steps.push(step("publish_close_policy", STATUS.done, `Publish close policy: ${closePolicy.policy}.`, closePolicy));
     if (closePolicy.policy === PUBLISH_CLOSE_POLICIES.scheduledBatchConfirm) {
-      steps.push(await maybeConfirmScheduledPublish({
+      const scheduledConfirmationStep = await maybeConfirmScheduledPublish({
         page,
         plan: adapterPlan,
         steps,
         confirmScheduledPublish: true
-      }));
-      if (steps[steps.length - 1].status === STATUS.done) await profile.context.close().catch(() => {});
+      });
+      if (scheduledConfirmationStep.status === STATUS.done && ["wechat_channels", "douyin"].includes(adapterPlan.platform)) {
+        reconcileManualHandoffSteps(steps, scheduledConfirmationStep, adapterPlan.platform);
+      }
+      steps.push(scheduledConfirmationStep);
+      if (scheduledConfirmationStep.status === STATUS.done) await profile.context.close().catch(() => {});
     } else if (closePolicy.policy === PUBLISH_CLOSE_POLICIES.immediateSaveDraftExit) {
       steps.push(await maybeSaveDraftAndExit({
         adapter,
@@ -1579,6 +1593,32 @@ function isPersistentProfileSessionOpenError(error) {
     && /user-data-dir=.*profiles/i.test(message);
 }
 
+function composerCollectionPlatformName(platform) {
+  if (platform === "xiaohongshu") return "Xiaohongshu";
+  if (platform === "wechat_channels") return "WeChat Channels";
+  if (platform === "douyin") return "Douyin";
+  return platform || "Platform";
+}
+
+function reconcileManualHandoffSteps(steps, scheduledConfirmationStep, platform) {
+  const accepted = new Set(scheduledConfirmationStep?.details?.operator_accepted_blocked_steps || []);
+  if (accepted.size === 0) return;
+  for (const item of steps) {
+    if (!accepted.has(item?.name) || item.status !== STATUS.needsHuman) continue;
+    const priorMessage = item.message || "";
+    item.status = STATUS.done;
+    item.message = `Human operator completed or accepted this step during ${composerCollectionPlatformName(platform)} scheduled publish handoff; automation did not verify it. Prior: ${priorMessage}`;
+    item.details = {
+      ...(item.details || {}),
+      prior_status: STATUS.needsHuman,
+      prior_message: priorMessage,
+      verified_by_automation: false,
+      operator_completed_scheduled_publish: true,
+      handoff_reason_code: scheduledConfirmationStep.details?.manual_handoff_reason_code || null
+    };
+  }
+}
+
 const SAMPLE_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
 
 function resultPayload(plan, steps, profileName, dryRun) {
@@ -1601,6 +1641,9 @@ function resultPayload(plan, steps, profileName, dryRun) {
 function derivePublishAction(steps) {
   if (steps.some((item) => item.name === "scheduled_publish_confirmation" && item.status === STATUS.done)) {
     return "scheduled_publish_confirmed";
+  }
+  if (steps.some((item) => item.name === "scheduled_publish_confirmation" && item.status === STATUS.needsHuman && Number(item?.details?.click_count || 0) > 0)) {
+    return "needs_human_after_click";
   }
   if (steps.some((item) => item.name === "draft_exit" && item.status === STATUS.done)) {
     return "immediate_draft_saved_and_closed";

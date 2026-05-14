@@ -28,6 +28,20 @@ export async function runBatchDraftFill({ batch, args = {}, batchDir = process.c
       });
       continue;
     }
+    const existing = await readExistingConfirmedResult(item, args, batch);
+    if (existing) {
+      results.push({
+        index,
+        work_dir: item.work_dir,
+        target_id: item.target_id || null,
+        profile_name: item.profile_name || null,
+        status: "skipped_existing_success",
+        exit_code: 0,
+        reason_code: "scheduled_publish_already_confirmed",
+        result: existing
+      });
+      continue;
+    }
     const run = await invoke(item, index, { args, batch, batchItemCount: items.length });
     const parsed = parseRunStdout(run.stdout);
     const status = run.code === 0 ? "done" : parsed?.overall_status || "failed";
@@ -54,6 +68,29 @@ export async function runBatchDraftFill({ batch, args = {}, batchDir = process.c
     item_count: items.length,
     items: results
   };
+}
+
+async function readExistingConfirmedResult(item, args, batch) {
+  if (args.dryRun || batch?.dry_run) return null;
+  const resultPath = path.join(item.work_dir, "draft-fill-result.json");
+  let result;
+  try {
+    result = JSON.parse((await fs.readFile(resultPath, "utf8")).replace(/^\uFEFF/, ""));
+  } catch {
+    return null;
+  }
+  return isScheduledPublishConfirmedResult(result) ? result : null;
+}
+
+export function isScheduledPublishConfirmedResult(result) {
+  if (!result || typeof result !== "object") return false;
+  if (result.overall_status !== "done") return false;
+  if (result.publish_action === "scheduled_publish_confirmed") return true;
+  return Array.isArray(result.steps) && result.steps.some((item) =>
+    item?.name === "scheduled_publish_confirmation"
+      && item?.status === "done"
+      && item?.details?.click_count === 1
+  );
 }
 
 function normalizeItems(batch, batchDir) {

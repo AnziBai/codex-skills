@@ -105,6 +105,14 @@ operator only has to log in once. Platform adapters then check the opened page
 for login/auth routes and stop with `needs_human` instead of continuing into
 broken selectors.
 
+A matched platform URL is not proof of login or publish-editor readiness. Treat
+`page_signature` as "opened the target URL" only. Do not say the run entered the
+publish page until the same dedicated profile shows composer readiness, such as
+visible upload controls, editable title/body fields, or platform-specific draft
+composer controls. If those controls are absent, report the profile/login state
+as unverified and have the operator open that exact profile with `open-profile`
+or `login-profile`.
+
 ## Work And Asset Readiness
 
 The minimum work directory contains:

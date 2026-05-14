@@ -48,6 +48,11 @@ decisions.
   user is only asked to log in once.
 - Login itself is never bypassed. Platform adapters check the opened page for
   login/auth URLs and stop with `needs_human` instead of failing mysteriously.
+- Never equate a matching platform URL or `page_signature` step with a logged-in
+  publish editor. Say "opened the target URL" until the same profile has visible
+  composer controls, upload controls, or editable title/body fields. If those
+  controls are absent, treat it as login/profile state unverified and stop or
+  ask the operator to log in with `open-profile`.
 - If scheduling is absent, warn that Douyin desktop Creator Center may not
   preserve drafts like Xiaohongshu. A Douyin batch may require scheduling or
   finalizing one item before preparing the next. Xiaohongshu can usually save

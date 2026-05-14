@@ -101,6 +101,9 @@ function derivePublishAction(steps) {
   if (steps.some((item) => item?.name === "scheduled_publish_confirmation" && item?.status === "done")) {
     return "scheduled_publish_confirmed";
   }
+  if (steps.some((item) => item?.name === "scheduled_publish_confirmation" && item?.status === "needs_human" && Number(item?.details?.click_count || 0) > 0)) {
+    return "needs_human_after_click";
+  }
   if (steps.some((item) => item?.name === "draft_exit" && item?.status === "done")) {
     return "immediate_draft_saved_and_closed";
   }

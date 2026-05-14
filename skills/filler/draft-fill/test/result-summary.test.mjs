@@ -113,6 +113,22 @@ await withWorkDir({
 });
 
 await withWorkDir({
+  work_id: "work-after-click-needs-human",
+  target_id: "xhs-after-click-1",
+  platform: "xiaohongshu",
+  overall_status: "needs_human",
+  steps: [
+    { name: "publish_boundary", status: "done", message: "Final publish button count=1; not clicked." },
+    { name: "scheduled_publish_confirmation", status: "needs_human", message: "Scheduled publish was clicked, but post-click success was not verified.", details: { click_count: 1 } }
+  ]
+}, async (workDir) => {
+  const summary = await summarizeResultFile(workDir);
+  assert.equal(summary.ok, false);
+  assert.equal(summary.publish_action, "needs_human_after_click");
+  assert.equal(summary.scheduled_publish_confirmed, false);
+});
+
+await withWorkDir({
   work_id: "work-boundary-history",
   target_id: "xhs-history-1",
   platform: "xiaohongshu",

@@ -52,6 +52,16 @@ assert.equal(mismatchedRunSteps[0].name, "platform_identity");
 assert.equal(mismatchedRunSteps[0].status, "failed");
 assert.equal(mismatchedRunSteps[0].details.expected_platform, "douyin");
 
+const mismatchedXhsSteps = await xiaohongshuAdapter.run({ page: { goto: () => { throw new Error("should not navigate"); } }, plan: { platform: "wechat_channels" } });
+assert.equal(mismatchedXhsSteps[0].name, "platform_identity");
+assert.equal(mismatchedXhsSteps[0].status, "failed");
+assert.equal(mismatchedXhsSteps[0].details.expected_platform, "xiaohongshu");
+
+const mismatchedWechatSteps = await wechatChannelsAdapter.run({ page: { goto: () => { throw new Error("should not navigate"); } }, plan: { platform: "douyin" } });
+assert.equal(mismatchedWechatSteps[0].name, "platform_identity");
+assert.equal(mismatchedWechatSteps[0].status, "failed");
+assert.equal(mismatchedWechatSteps[0].details.expected_platform, "wechat_channels");
+
 const fallbackCollections = await inspectCollections({ page: null, plan: { platform: "unknown" }, logDir: "" });
 assert.equal(fallbackCollections.status, "failed");
 assert.equal(fallbackCollections.collections.length, 0);
@@ -110,8 +120,12 @@ assert.equal(wechatInputs.find((item) => classifyWechatChannelsInput(item) === "
 assert.equal(isWechatChannelsPublishButton({ tag: "BUTTON", text: "\u53d1\u8868" }), true);
 assert.equal(isWechatChannelsPublishButton({ tag: "DIV", text: "\u4fdd\u5b58\u8349\u7a3f \u624b\u673a\u9884\u89c8 \u53d1\u8868" }), false);
 assert.equal(isWechatChannelsPublishButton({ tag: "DIV", className: "weui-desktop-btn_primary", text: "\u53d1\u8868" }), true);
+assert.equal(isWechatChannelsPublishButton({ tag: "BUTTON", text: "\u53d1\u5e03\u56fe\u6587" }), false);
+assert.equal(isWechatChannelsPublishButton({ tag: "BUTTON", text: "\u53d1\u8868\u56fe\u6587" }), false);
 assert.equal(isWechatChannelsImageEntryButton("\u53d1\u8868\u56fe\u6587"), true);
 assert.equal(isWechatChannelsImageEntryButton("\u53d1\u8868 \u56fe\u6587"), true);
+assert.equal(isWechatChannelsImageEntryButton("\u53d1\u5e03\u56fe\u6587"), true);
+assert.equal(isWechatChannelsImageEntryButton("\u65b0\u5efa\u56fe\u6587"), true);
 assert.equal(isWechatChannelsImageEntryButton("\u53d1\u8868"), false);
 assert.equal(isWechatChannelsImageEntryButton("\u4fdd\u5b58\u8349\u7a3f \u53d1\u8868"), false);
 
@@ -153,6 +167,15 @@ const accountMismatch = await readCollectionCache({
 });
 assert.equal(accountMismatch.status, "needs_human");
 assert.equal(accountMismatch.error_code, "collection_cache_account_mismatch");
+
+const platformMismatch = await readCollectionCache({
+  profileName: cacheProfile,
+  platform: "wechat_channels",
+  accountFingerprint: "acct-1",
+  now: new Date("2026-05-14T00:00:00.000Z")
+});
+assert.equal(platformMismatch.status, "needs_human");
+assert.equal(platformMismatch.error_code, "collection_cache_platform_mismatch");
 
 const profileMismatch = await readCollectionCache({
   profileName: `${cacheProfile}-missing`,

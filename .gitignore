@@ -10,6 +10,11 @@ node_modules/
 *-test-work/
 out/
 qa-assets/
+.gstack/qa-reports/
+qa-invalid-platform.json
+qa-single-platform.json
+qa-success.json
+sample-social-post.json
 logs/
 manual/
 publish-result.json

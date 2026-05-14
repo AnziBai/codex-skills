@@ -68,10 +68,15 @@ Good intake shape:
 
 ## Command Shape
 
-From the repository root:
+Resolve the CLI entry before running commands. Prefer the repository copy when
+the current workspace is the skills repo; otherwise fall back to the locally
+registered skill under `$HOME\.codex\skills\filler`.
 
 ```powershell
-$Publisher = Join-Path (Get-Location) "skills\filler\scripts\filler.ps1"
+$RepoPublisher = Join-Path (Get-Location) "skills\filler\scripts\filler.ps1"
+$LocalPublisher = Join-Path $HOME ".codex\skills\filler\scripts\filler.ps1"
+$Publisher = if (Test-Path -LiteralPath $RepoPublisher) { $RepoPublisher } else { $LocalPublisher }
+if (-not (Test-Path -LiteralPath $Publisher)) { throw "filler CLI not found: $Publisher" }
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher setup-draft-fill -Json
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher copy-generate -WorkDir ".\work" -Json
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher copy-select -WorkDir ".\work" -TargetId "xhs-main-note" -CandidateId "xhs-main-note-2" -Json

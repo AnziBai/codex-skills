@@ -48,12 +48,18 @@ decisions.
   proves it.
 - Final publish boundary is a confirmation, not a question: automation prepares
   and verifies the draft; a human reviews and performs the public publish click.
+- WeChat Channels can land on the image management page after login. The image
+  publish entry is often an outer-page, upper-right `发布图文` button, not only a
+  button inside the micro-app iframe. Inspect and click the outer-page entry
+  first, then fall back to iframe matching. Never match plain `发表`, because
+  that is also the final publish boundary.
 
 Good intake shape:
 
 ```text
-我已识别：小红书 + 抖音，素材来自 21-40 的 18 个子文件夹，每组按 1.png 到 5.png 上传；标题默认从首图/文件夹名优化；最终发布按钮由人工点击。
-
+我已识别：小红书 + 抖音，素材来自 21-40 的 18 个子文件夹，
+每组按 1.png 到 5.png 上传；标题默认从首图/文件夹名优化；
+最终发布按钮由人工点击。
 还需要你点选 3 项：
 1. 是否定时：不定时 (Recommended) / 单条定时 / 批量定时
 2. 平台：小红书+抖音 (Recommended) / 三平台 / 自定义

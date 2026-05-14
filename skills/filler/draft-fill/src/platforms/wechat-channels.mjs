@@ -42,7 +42,7 @@ async function openWechatChannelsComposer(page, plan) {
     await page.goto("https://channels.weixin.qq.com/platform/post/finderNewLifePostList", { waitUntil: "domcontentloaded" });
     const listFrame = await waitForWechatChannelsFrame(page, "finderNewLifePostList", 30000);
     await waitForWechatChannelsVisibleSelector(listFrame, ".video-btn-wrap, .weui-desktop-btn_wrp, button, [role='button']", 30000);
-    const entryClick = await clickWechatChannelsImageEntry(listFrame);
+    const entryClick = await clickWechatChannelsImageEntry(page, listFrame);
     if (!entryClick.clicked) {
       return step("composer", STATUS.needsHuman, "WeChat Channels image publish entry was not found or was not clickable.", entryClick.evidence);
     }
@@ -103,11 +103,26 @@ async function waitForWechatChannelsImageReady(frame, timeoutMs) {
   return false;
 }
 
-async function clickWechatChannelsImageEntry(frame) {
-  const evidence = await readWechatChannelsImageEntryEvidence(frame);
+async function clickWechatChannelsImageEntry(page, frame) {
+  const pageClick = await clickWechatChannelsImageEntryInScope(page, "outer_page");
+  if (pageClick.clicked) return pageClick;
+  const frameClick = await clickWechatChannelsImageEntryInScope(frame, "content_frame");
+  if (frameClick.clicked) return frameClick;
+  return {
+    clicked: false,
+    evidence: {
+      outer_page: pageClick.evidence,
+      content_frame: frameClick.evidence
+    }
+  };
+}
+
+async function clickWechatChannelsImageEntryInScope(scope, scopeName) {
+  const evidence = { scope: scopeName, ...(await readWechatChannelsImageEntryEvidence(scope)) };
+  const ownerPage = typeof scope.page === "function" ? scope.page() : scope;
   const selectors = [
-    frame.getByRole("button", { name: WECHAT_CHANNELS_IMAGE_ENTRY_RE }).first(),
-    frame.locator("button, [role='button'], .video-btn-wrap, .weui-desktop-btn_primary, .weui-desktop-btn_wrp")
+    scope.getByRole("button", { name: WECHAT_CHANNELS_IMAGE_ENTRY_RE }).first(),
+    scope.locator("button, [role='button'], .video-btn-wrap, .weui-desktop-btn_primary, .weui-desktop-btn_wrp")
       .filter({ hasText: WECHAT_CHANNELS_IMAGE_ENTRY_RE })
       .first()
   ];
@@ -116,14 +131,14 @@ async function clickWechatChannelsImageEntry(frame) {
     try {
       await candidate.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
       await candidate.click({ timeout: 6000, force: true });
-      await frame.page().waitForTimeout(1200);
+      await ownerPage.waitForTimeout(1200);
       return { clicked: true, evidence: { ...evidence, strategy: "locator_text_match" } };
     } catch {
       // Try the next selector before falling back to a coordinate click.
     }
   }
 
-  const clickedByPoint = await frame.evaluate((source) => {
+  const clickedByPoint = await scope.evaluate((source) => {
     const re = new RegExp(source);
     const visible = (node) => {
       if (!node) return false;
@@ -142,8 +157,8 @@ async function clickWechatChannelsImageEntry(frame) {
     };
   }, WECHAT_CHANNELS_IMAGE_ENTRY_RE.source).catch(() => null);
   if (clickedByPoint) {
-    await frame.page().mouse.click(clickedByPoint.x, clickedByPoint.y);
-    await frame.page().waitForTimeout(1200);
+    await ownerPage.mouse.click(clickedByPoint.x, clickedByPoint.y);
+    await ownerPage.waitForTimeout(1200);
     return { clicked: true, evidence: { ...evidence, strategy: "coordinate_text_match" } };
   }
 

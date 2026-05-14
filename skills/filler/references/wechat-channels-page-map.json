@@ -18,7 +18,7 @@
     "image_list": {
       "outer_url": "https://channels.weixin.qq.com/platform/post/finderNewLifePostList",
       "content_frame_url_contains": "/micro/content/post/finderNewLifePostList",
-      "open_create_strategy": "click visible content-frame entry whose text matches 发表图文/发表动态/发布图文; never use plain 发表 because that is the final publish boundary"
+      "open_create_strategy": "click visible outer-page or content-frame entry whose text matches 发表图文/发表动态/发布图文; never use plain 发表 because that is the final publish boundary"
     },
     "image_create": {
       "outer_url_after_open": "https://channels.weixin.qq.com/platform/post/finderNewLifeCreate",

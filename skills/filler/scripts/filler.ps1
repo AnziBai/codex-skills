@@ -612,6 +612,7 @@ function New-DraftPlan {
   $coverText = Get-PropertyValue $selected "cover_text" (Get-OverrideValue $target "cover_text" $null)
   $collectionFallback = Get-PropertyValue $manifest "collection" (Get-InferredCollection $manifest $platform $title $body)
   $collection = Get-OverrideValue $target "collection" $collectionFallback
+  $collectionTaxonomyPath = Get-OverrideValue $target "collection_taxonomy_path" (Get-PropertyValue $manifest "collection_taxonomy_path" $null)
   $declaration = Get-OverrideValue $target "declaration" (Get-DefaultDeclaration $platform)
   $music = Get-OverrideValue $target "music" (Get-DefaultMusic $platform)
   $schedule = Get-OverrideValue $target "schedule" (Get-DraftSchedule $manifest)
@@ -641,6 +642,7 @@ function New-DraftPlan {
     tags = @($tags | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
     cover_text = $coverText
     collection = $collection
+    collection_taxonomy_path = $collectionTaxonomyPath
     declaration = $declaration
     music = $music
     schedule = $schedule

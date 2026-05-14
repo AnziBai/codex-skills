@@ -256,13 +256,14 @@ try {
 
   $xhsThreeImageWork = Join-Path $root "xhs-three-image-work"
   New-Item -ItemType Directory -Force -Path $xhsThreeImageWork | Out-Null
-  New-DraftScenarioWork $xhsThreeImageWork "xhs-three-image-work" "xiaohongshu" "note" "xhs-three-image" "xhs_main" @("assets\1.jpg", "assets\2.jpg", "assets\3.jpg") "" "scheduled" "2026-05-14T21:30:00+08:00"
+  New-DraftScenarioWork $xhsThreeImageWork "xhs-three-image-work" "xiaohongshu" "note" "xhs-three-image" "xhs_main" @("assets\1.jpg", "assets\2.jpg", "assets\3.jpg") "" "scheduled" "2026-05-14T21:30:00+08:00" @{ collection_taxonomy_path = "taxonomy.json" }
   $xhsThreeImagePlan = Invoke-Publisher -PublisherArgs @("draft-plan", "-WorkDir", $xhsThreeImageWork, "-TargetId", "xhs-three-image", "-Json")
   Assert-True ($xhsThreeImagePlan.Code -eq 0) "xhs three-image draft-plan should exit 0, got $($xhsThreeImagePlan.Code): stdout=$($xhsThreeImagePlan.Stdout) stderr=$($xhsThreeImagePlan.Stderr)"
   $xhsThreeImageJson = $xhsThreeImagePlan.Stdout | ConvertFrom-Json
   Assert-True (@($xhsThreeImageJson.asset_paths.images).Count -eq 3) "xhs three-image plan should preserve all 3 images"
   Assert-True ($xhsThreeImageJson.relative_asset_paths.images[2] -eq "assets\3.jpg") "xhs three-image plan should preserve image order"
   Assert-True ($xhsThreeImageJson.collection -eq (Utf8 "5a696K66")) "xhs collection should be inferred from broad product knowledge when absent"
+  Assert-True ($xhsThreeImageJson.collection_taxonomy_path -eq "taxonomy.json") "draft-plan should preserve collection taxonomy path override"
   Assert-True ($xhsThreeImageJson.declaration.mode -eq "original") "xhs should default to original declaration"
   Assert-True (-not [string]::IsNullOrWhiteSpace([string]$xhsThreeImageJson.declaration.source_location)) "xhs default declaration should include source location for content-source modal"
   Assert-True (-not [string]::IsNullOrWhiteSpace([string]$xhsThreeImageJson.declaration.source_date)) "xhs default declaration should include source date for content-source modal"
@@ -272,11 +273,11 @@ try {
   Assert-True ($xhsPreflight.Code -eq 4) "xhs preflight with unresolved collection inspection should exit 4"
   $xhsPreflightJson = $xhsPreflight.Stdout | ConvertFrom-Json
   $xhsQuestionIds = @($xhsPreflightJson.questions | ForEach-Object { $_.id })
-  Assert-True ($xhsQuestionIds -contains "inspect_collections") "xhs preflight should request inspect-collections before real draft fill"
+  Assert-True ($xhsQuestionIds -contains "collection_decision") "xhs preflight should ask how to resolve an untrusted or low-confidence collection decision before real draft fill"
   Assert-True ($xhsQuestionIds -contains "account_fingerprint") "xhs preflight should ask for account fingerprint before trusting collection cache"
-  $xhsInspectQuestion = @($xhsPreflightJson.questions | Where-Object { $_.id -eq "inspect_collections" })[0]
-  Assert-True ($xhsInspectQuestion.input_mode -eq "single_choice") "inspect_collections should be renderable as a single-choice prompt"
-  Assert-True (@($xhsInspectQuestion.options).Count -ge 2) "inspect_collections should include clickable options"
+  $xhsCollectionDecisionQuestion = @($xhsPreflightJson.questions | Where-Object { $_.id -eq "collection_decision" })[0]
+  Assert-True ($xhsCollectionDecisionQuestion.input_mode -eq "single_choice") "collection_decision should be renderable as a single-choice prompt"
+  Assert-True (@($xhsCollectionDecisionQuestion.options).Count -ge 2) "collection_decision should include clickable options"
   Assert-True ($xhsPreflightJson.interaction.max_questions_per_round -eq 3) "preflight should cap guided intake to three primary questions"
   Assert-True (@($xhsPreflightJson.interaction.primary_question_ids).Count -le 3) "preflight should expose at most three primary question ids"
   $xhsConfirmationIds = @($xhsPreflightJson.confirmations | ForEach-Object { $_.id })

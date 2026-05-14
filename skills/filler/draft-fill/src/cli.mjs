@@ -4,7 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { adapters, collectionInspectors, inspectCollections } from "./adapters.mjs";
 import { ProfileLockHeldError, launchPersistentProfile } from "./browser-profile.mjs";
-import { accountFingerprintFromPlan, collectionCacheStep, collectionCacheSummary, readCollectionCache, validateProfileName, writeCollectionCache } from "./collection-cache.mjs";
+import { accountFingerprintFromPlan, collectionCacheSummary, readCollectionCache, validateProfileName, writeCollectionCache } from "./collection-cache.mjs";
+import { planWithResolvedCollection, resolveCollectionDecision } from "./collection-matcher.mjs";
 import { ResultSummaryInputError, summarizeResultFile } from "./result-summary.mjs";
 import { RobustnessMatrixInputError, runRobustnessMatrix } from "./robustness-matrix.mjs";
 import {
@@ -283,17 +284,17 @@ async function preflight(args) {
       platform: plan.platform,
       accountFingerprint: accountFingerprintFromPlan(plan)
     });
-    const cacheStep = collectionCacheStep(cacheStatus, plan.collection);
-    steps.push(cacheStep);
-    if (cacheStep.status === STATUS.needsHuman) {
+    const collectionStep = await collectionDecisionStepForPlan({ plan, cacheStatus, workDir });
+    steps.push(collectionStep);
+    if (collectionStep.status === STATUS.needsHuman) {
       addQuestion(questions, {
-        id: "inspect_collections",
-        question: `是否先检查 ${plan.platform}/${profileName} 的合集列表？`,
-        why: "The requested collection must already exist in the profile cache; narrow collections are not auto-created.",
+        id: "collection_decision",
+        question: `合集没有高置信匹配，怎么处理？`,
+        why: "The CLI only selects an existing visible collection after a trusted cache and high-confidence semantic match.",
         ...choiceSet([
-          choice("检查合集 (Recommended)", "打开 Profile 一次，缓存页面可见合集选项。", "inspect", true),
+          choice("检查合集 (Recommended)", "重新打开 Profile 缓存页面可见合集选项。", "inspect", true),
           choice("本次跳过合集", "自动填草稿，但不自动选择合集。", "skip"),
-          choice("人工选择合集", "停在草稿页，让操作者手动选择合集。", "manual")
+          choice("人工指定合集", "提供一个确定存在且语义匹配的合集名称。", "manual")
         ], "inspect")
       });
     }
@@ -315,6 +316,42 @@ async function inferProfileName(planPath) {
   } catch {
     return null;
   }
+}
+
+async function collectionDecisionStepForPlan({ plan, cacheStatus, workDir }) {
+  try {
+    const decision = await resolveCollectionDecision({ plan, cacheStatus, workDir });
+    return step(
+      "collection_decision",
+      decision.status,
+      decision.message,
+      sanitizeCollectionDecision(decision)
+    );
+  } catch (error) {
+    return step("collection_decision", STATUS.failed, `Collection decision failed: ${error.message}`);
+  }
+}
+
+function sanitizeCollectionDecision(decision) {
+  return {
+    reason_code: decision.reason_code,
+    requested_collection: decision.requested_collection,
+    selected_collection: decision.selected_collection,
+    confidence: decision.confidence,
+    match_type: decision.match_type,
+    matched_keywords: Array.isArray(decision.matched_keywords) ? decision.matched_keywords : [],
+    candidate_count: decision.candidate_count || 0,
+    candidates: Array.isArray(decision.candidates)
+      ? decision.candidates.slice(0, 3).map((candidate) => ({
+          selected_collection: candidate.selected_collection,
+          taxonomy_collection: candidate.taxonomy_collection,
+          score: candidate.score,
+          confidence: candidate.confidence,
+          match_type: candidate.match_type,
+          matched_keywords: candidate.matched_keywords || []
+        }))
+      : []
+  };
 }
 
 function collectPreflightPrompts(plan, manifest, questions, confirmations) {
@@ -858,11 +895,11 @@ async function inspectCollectionsCommand(args) {
       platform: plan.platform,
       accountFingerprint
     });
-    const cacheStep = collectionCacheStep(cacheStatus, plan.collection);
+    const collectionDecisionStep = await collectionDecisionStepForPlan({ plan, cacheStatus, workDir });
     const steps = [
       step("draft_plan", STATUS.done, "draft-plan.json valid."),
       step("dry_run", STATUS.done, "Validated inspect-collections plan and cache semantics without opening browser."),
-      cacheStep
+      collectionDecisionStep
     ];
     const status = overallStatus(steps);
     return exit(status === STATUS.failed ? 5 : status === STATUS.needsHuman ? 4 : 0, {
@@ -873,6 +910,7 @@ async function inspectCollectionsCommand(args) {
       platform: plan.platform,
       profile_name: profileName,
       collection_cache: collectionCacheSummary(cacheStatus),
+      collection_decision: collectionDecisionStep.details || null,
       overall_status: status,
       steps
     }, args.json);
@@ -1449,15 +1487,16 @@ async function draftFill(args) {
     });
     const page = profile.page;
     steps.push(step("browser_profile", STATUS.done, `Using browser profile: ${profileName}`, { profile_name: profileName }));
+    let adapterPlan = plan;
     if (plan.collection) {
       const cacheStatus = await readCollectionCache({
         profileName,
         platform: plan.platform,
         accountFingerprint: accountFingerprintFromPlan(plan)
       });
-      const cacheStep = collectionCacheStep(cacheStatus, plan.collection);
-      steps.push(cacheStep);
-      if (cacheStep.status !== STATUS.done) {
+      const collectionStep = await collectionDecisionStepForPlan({ plan, cacheStatus, workDir });
+      steps.push(collectionStep);
+      if (collectionStep.status !== STATUS.done) {
         const result = resultPayload(plan, steps, profileName, false);
         await writeRunResult(workDir, targetId, result);
         if (profile?.context) await profile.context.close().catch(() => {});
@@ -1465,8 +1504,9 @@ async function draftFill(args) {
         if (profile?.release) await profile.release().catch(() => {});
         return exit(4, result, args.json);
       }
+      adapterPlan = planWithResolvedCollection(plan, collectionStep.details);
     }
-    const adapterSteps = await adapter.run({ page, plan, logDir, profileName, workDir });
+    const adapterSteps = await adapter.run({ page, plan: adapterPlan, logDir, profileName, workDir });
     steps.push(...adapterSteps);
   } catch (error) {
     if (error instanceof ProfileLockHeldError) return exit(6, error.payload, args.json);

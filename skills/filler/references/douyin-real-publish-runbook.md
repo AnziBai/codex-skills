@@ -35,6 +35,31 @@ Verify all of these before handoff:
 - Scheduling matches the user's decision. Ask whether to schedule before handoff. If yes, ask the exact time. For multiple works, ask the starting time and interval between works. If the user selected no schedule, `立即发布` must be checked.
 - Publish button is visible/enabled, but automation stops before clicking.
 
+## Manual Collection And Publish Queue
+
+Use this mode when the operator says that all Douyin collections and publish
+clicks will be handled manually.
+
+- Leave `draft-plan.json` `collection` as `null` so the adapter skips automatic
+  collection selection.
+- Automation may still upload assets, fill title/body, select topic tokens,
+  choose the personal-viewpoint declaration, choose music, and set schedule.
+- Automation must stop at the final publish boundary. The operator selects the
+  collection and clicks publish.
+- For a multi-work scheduled batch, the queue should wait for Douyin to return
+  to works management or the upload entry after the operator publishes, then
+  continue with the next work. Do not require the operator to close the browser
+  window between items.
+- This queue behavior was validated as a local operator prototype on
+  2026-05-14. Before team handoff, productize it inside the committed
+  `batch-draft-fill` flow or a dedicated command; do not commit local `out/`
+  scripts, run logs, screenshots, DOM dumps, or profile artifacts.
+
+Douyin may reject scheduled times that are too soon. On 2026-05-14 the platform
+adjusted a requested `2026-05-14 20:30` time to `2026-05-14 21:25` and displayed
+that scheduled posts must be at least two hours later and within 14 days. Always
+read back and report the platform-adjusted scheduled time.
+
 ## Topic Selection
 
 Preferred flow:

@@ -25,7 +25,7 @@
 
 | Skill | 一句话 | 状态 | 入口 |
 | --- | --- | --- | --- |
-| `filler` | 把已经完成的作品变成平台发布草稿：AI 写标题和文案，CLI 校验素材，Playwright 自动上传并填写小红书、抖音、视频号草稿，最终发布按钮留给人工。 | 生产试运行 | [SKILL.md](skills/filler/SKILL.md) · [同事指南](skills/filler/README.md) |
+| `filler` | 把已经完成的作品变成平台发布草稿：AI 写标题和文案，CLI 校验素材，Playwright 自动上传并填写小红书、抖音、视频号草稿；即时发布保存草稿，批量定时自动确认。 | 生产试运行 | [SKILL.md](skills/filler/SKILL.md) · [同事指南](skills/filler/README.md) |
 
 后续新的 skill 会继续放在 `skills/<skill-name>` 下。每个 skill 都应该可以单独安装、单独阅读、单独测试。
 
@@ -88,7 +88,7 @@ human final publish click
 - 自动上传图片或视频。
 - 自动填写标题、正文、tag token、合集、原创或个人观点声明、音乐和定时设置。
 - 基于已缓存的账号合集做确定性语义匹配，只有高置信匹配已有宽泛合集时才自动选择。
-- 停在最终公开发布按钮前，由人工最后确认；定时发布确认必须额外显式授权。
+- 即时发布不会点击公开发布按钮，会保存草稿并关闭；多作品或多平台定时发布会在验证通过后自动确认定时发布。
 - 输出 `draft-fill-result.json`、`logs/<target-id>/run.json` 和截图证据。
 
 ### 适合
@@ -101,7 +101,7 @@ human final publish click
 ### 不适合
 
 - 想绕过登录、验证码、风控或平台限制。
-- 想让程序直接点击最终发布按钮。
+- 想让程序直接点击即时公开发布按钮，或绕过定时读回验证。
 - 没有整理作品目录、素材顺序和账号 profile 的临时发布。
 - 平台页面刚大改，却不愿意先跑诊断和修 selector。
 
@@ -125,7 +125,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\fil
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -Json
 ```
 
-如果这是已经读回验证过时间的定时发布，并且你明确允许 CLI 点击平台的“定时发布”确认按钮：
+批量填写草稿，串行执行并在当前项失败时停止：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" batch-draft-fill -BatchPath ".\batch.json" -ConfirmIntake -Json
+```
+
+如果这是单条已经读回验证过时间的定时发布，并且你明确允许 CLI 点击平台的“定时发布”确认按钮：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -ConfirmScheduledPublish -Json

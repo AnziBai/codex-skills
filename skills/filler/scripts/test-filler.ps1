@@ -239,6 +239,26 @@ try {
   Assert-True (Test-Path (Join-Path $copyWork "logs\xhs-main-note\run.json")) "draft-fill should write target run log"
   $draftFillDryRunWithScheduledConfirm = Invoke-Publisher -PublisherArgs @("draft-fill", "-WorkDir", $copyWork, "-TargetId", "xhs-main-note", "-ProfileName", "xhs-test", "-DryRun", "-ConfirmScheduledPublish", "-Json")
   Assert-True ($draftFillDryRunWithScheduledConfirm.Code -eq 0) "draft-fill should accept explicit ConfirmScheduledPublish flag, got $($draftFillDryRunWithScheduledConfirm.Code): stdout=$($draftFillDryRunWithScheduledConfirm.Stdout) stderr=$($draftFillDryRunWithScheduledConfirm.Stderr)"
+  $batchSecondWork = Join-Path $root "batch-dry-run-second"
+  New-Item -ItemType Directory -Force -Path $batchSecondWork | Out-Null
+  New-Work $batchSecondWork "batch-dry-run-second" @(
+    [ordered]@{ target_id = "batch-second-xhs"; platform = "xiaohongshu"; kind = "note"; account_id = "xhs_main"; overrides = [ordered]@{} }
+  )
+  $batchSecondPlan = Invoke-Publisher -PublisherArgs @("draft-plan", "-WorkDir", $batchSecondWork, "-TargetId", "batch-second-xhs", "-Json")
+  Assert-True ($batchSecondPlan.Code -eq 0) "batch second draft-plan should exit 0"
+  $batchPath = Join-Path $root "batch-dry-run.json"
+  [ordered]@{
+    confirm_intake = $true
+    items = @(
+      [ordered]@{ work_dir = $copyWork; target_id = "xhs-main-note"; profile_name = "xhs-test" },
+      [ordered]@{ work_dir = $batchSecondWork; target_id = "batch-second-xhs"; profile_name = "xhs-test" }
+    )
+  } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $batchPath -Encoding UTF8
+  $batchDryRun = Invoke-Publisher -PublisherArgs @("batch-draft-fill", "-BatchPath", $batchPath, "-DryRun", "-Json")
+  Assert-True ($batchDryRun.Code -eq 0) "batch-draft-fill dry-run should exit 0, got $($batchDryRun.Code): stdout=$($batchDryRun.Stdout) stderr=$($batchDryRun.Stderr)"
+  $batchDryRunJson = $batchDryRun.Stdout | ConvertFrom-Json
+  Assert-True ($batchDryRunJson.item_count -eq 2) "batch-draft-fill should report both items"
+  Assert-True ($batchDryRunJson.overall_status -eq "done") "batch-draft-fill dry-run should report done"
   $draftPlanDouyinOverwrite = Invoke-Publisher -PublisherArgs @("draft-plan", "-WorkDir", $copyWork, "-TargetId", "douyin-main-video", "-Json")
   Assert-True ($draftPlanDouyinOverwrite.Code -eq 0) "draft-plan should allow another target in the same workdir"
   $draftFillAfterOverwrite = Invoke-Publisher -PublisherArgs @("draft-fill", "-WorkDir", $copyWork, "-TargetId", "xhs-main-note", "-ProfileName", "xhs-test", "-DryRun", "-Json")

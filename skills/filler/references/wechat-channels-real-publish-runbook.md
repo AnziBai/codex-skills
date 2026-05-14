@@ -163,7 +163,9 @@ the run log proves:
 - Declaration/compliance controls are completed or intentionally reported as
   `needs_human`.
 - Schedule uses the requested time or reports a platform-adjusted time.
-- `publish_boundary` proves the final public publish button was not clicked.
+- Immediate runs preserve the public publish boundary; scheduled multi-item runs
+  may confirm scheduled publish only after schedule readback and all critical
+  steps are verified.
 - `result-summary` reports `publish_boundary_preserved: true`.
 
 ## Failure Handling
@@ -182,7 +184,7 @@ collection/account cache.
 
 ## Safety
 
-- Never click the final public publish button.
+- Never click the immediate public publish button.
 - Do not read, export, or copy cookies, local storage, or account secrets.
 - Do not reuse Xiaohongshu or Douyin declarations/selectors.
 - If login is required, stop with `needs_human`.

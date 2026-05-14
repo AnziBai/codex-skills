@@ -97,6 +97,22 @@ await withWorkDir({
 });
 
 await withWorkDir({
+  work_id: "work-immediate-saved",
+  target_id: "xhs-immediate-1",
+  platform: "xiaohongshu",
+  overall_status: "done",
+  steps: [
+    { name: "publish_boundary", status: "done", message: "Final publish button count=1; not clicked." },
+    { name: "draft_exit", status: "done", message: "Xiaohongshu draft saved and verified.", details: { closed: true } }
+  ]
+}, async (workDir) => {
+  const summary = await summarizeResultFile(workDir);
+  assert.equal(summary.ok, true);
+  assert.equal(summary.publish_action, "immediate_draft_saved_and_closed");
+  assert.equal(summary.publish_boundary_preserved, true);
+});
+
+await withWorkDir({
   work_id: "work-boundary-history",
   target_id: "xhs-history-1",
   platform: "xiaohongshu",

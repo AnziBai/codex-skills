@@ -101,6 +101,9 @@ function derivePublishAction(steps) {
   if (steps.some((item) => item?.name === "scheduled_publish_confirmation" && item?.status === "done")) {
     return "scheduled_publish_confirmed";
   }
+  if (steps.some((item) => item?.name === "draft_exit" && item?.status === "done")) {
+    return "immediate_draft_saved_and_closed";
+  }
   if (steps.some((item) => ["failed", "needs_human", "retrying"].includes(item?.status))) {
     return "needs_human_before_publish";
   }

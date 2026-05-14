@@ -12,8 +12,8 @@
     "robustness-matrix": "node src/cli.mjs robustness-matrix --json",
     "inspect-collections": "node src/cli.mjs inspect-collections --json",
     "inspect-wechat-channels": "node src/cli.mjs inspect-wechat-channels --json",
-    "test": "node test/adapters.test.mjs && node test/collection-matcher.test.mjs && node test/scheduled-publish.test.mjs && node test/result-summary.test.mjs && node test/robustness-matrix.test.mjs && node test/browser-profile.test.mjs",
-    "check": "node --check src/cli.mjs && node --check src/adapters.mjs && node --check src/platforms/common.mjs && node --check src/platforms/xiaohongshu.mjs && node --check src/platforms/douyin.mjs && node --check src/platforms/wechat-channels.mjs && node --check src/utils.mjs && node --check src/result-summary.mjs && node --check src/robustness-matrix.mjs && node --check src/browser-profile.mjs && node --check src/collection-cache.mjs && node --check src/collection-matcher.mjs && node --check src/scheduled-publish.mjs",
+    "test": "node test/adapters.test.mjs && node test/collection-matcher.test.mjs && node test/publish-close-policy.test.mjs && node test/scheduled-publish.test.mjs && node test/draft-exit.test.mjs && node test/batch-draft-fill.test.mjs && node test/result-summary.test.mjs && node test/robustness-matrix.test.mjs && node test/browser-profile.test.mjs",
+    "check": "node --check src/cli.mjs && node --check src/adapters.mjs && node --check src/platforms/common.mjs && node --check src/platforms/xiaohongshu.mjs && node --check src/platforms/douyin.mjs && node --check src/platforms/wechat-channels.mjs && node --check src/utils.mjs && node --check src/result-summary.mjs && node --check src/robustness-matrix.mjs && node --check src/browser-profile.mjs && node --check src/collection-cache.mjs && node --check src/collection-matcher.mjs && node --check src/scheduled-publish.mjs && node --check src/publish-close-policy.mjs && node --check src/draft-exit.mjs && node --check src/batch-draft-fill.mjs",
     "check:all": "npm run check && npm test && npm run robustness-matrix"
   },
   "dependencies": {

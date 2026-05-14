@@ -3,9 +3,12 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { adapters, collectionInspectors, inspectCollections } from "./adapters.mjs";
+import { readBatchFile, runBatchDraftFill } from "./batch-draft-fill.mjs";
 import { ProfileLockHeldError, launchPersistentProfile } from "./browser-profile.mjs";
 import { accountFingerprintFromPlan, collectionCacheSummary, readCollectionCache, validateProfileName, writeCollectionCache } from "./collection-cache.mjs";
 import { planWithResolvedCollection, resolveCollectionDecision } from "./collection-matcher.mjs";
+import { maybeSaveDraftAndExit } from "./draft-exit.mjs";
+import { PUBLISH_CLOSE_POLICIES, determinePublishClosePolicy } from "./publish-close-policy.mjs";
 import { ResultSummaryInputError, summarizeResultFile } from "./result-summary.mjs";
 import { RobustnessMatrixInputError, runRobustnessMatrix } from "./robustness-matrix.mjs";
 import { maybeConfirmScheduledPublish } from "./scheduled-publish.mjs";
@@ -45,6 +48,7 @@ async function main() {
     if (command === "robustness-matrix") return await robustnessMatrix(args);
     if (command === "inspect-collections") return await inspectCollectionsCommand(args);
     if (command === "inspect-wechat-channels") return await inspectWechatChannels(args);
+    if (command === "batch-draft-fill") return await batchDraftFill(args);
     if (command === "draft-fill") return await draftFill(args);
     return exit(2, { ok: false, error: `Unknown draft-fill command: ${command}` }, args.json);
   } catch (error) {
@@ -161,6 +165,18 @@ async function robustnessMatrix(args) {
     throw error;
   }
   return exit(result.ok ? 0 : 5, result, args.json);
+}
+
+async function batchDraftFill(args) {
+  if (!args.batchPath) return exit(2, { ok: false, error: "--batch-path is required." }, args.json);
+  const batchPath = path.resolve(args.batchPath);
+  const batch = await readBatchFile(batchPath);
+  const result = await runBatchDraftFill({
+    batch,
+    args,
+    batchDir: path.dirname(batchPath)
+  });
+  return exit(result.overall_status === "failed" ? 5 : result.overall_status === "needs_human" ? 4 : 0, result, args.json);
 }
 
 async function setup(args) {
@@ -1417,6 +1433,7 @@ async function draftFill(args) {
   const workDir = path.resolve(args.workDir);
   const planPath = path.join(workDir, "draft-plan.json");
   const plan = await readJson(planPath);
+  const manifest = await readManifestForIntake(workDir);
   const errors = await validatePlan(plan, workDir, args.targetId);
   const targetId = plan.target_id;
   if (errors.length > 0) {
@@ -1509,12 +1526,28 @@ async function draftFill(args) {
     }
     const adapterSteps = await adapter.run({ page, plan: adapterPlan, logDir, profileName, workDir });
     steps.push(...adapterSteps);
-    if (shouldEvaluateScheduledPublishConfirmation(adapterPlan, args)) {
+    const closePolicy = determinePublishClosePolicy({
+      plan: adapterPlan,
+      manifest,
+      confirmScheduledPublish: isTruthyFlag(args.confirmScheduledPublish),
+      batchItemCount: Number(args.batchItemCount || 1)
+    });
+    steps.push(step("publish_close_policy", STATUS.done, `Publish close policy: ${closePolicy.policy}.`, closePolicy));
+    if (closePolicy.policy === PUBLISH_CLOSE_POLICIES.scheduledBatchConfirm) {
       steps.push(await maybeConfirmScheduledPublish({
         page,
         plan: adapterPlan,
         steps,
-        confirmScheduledPublish: isTruthyFlag(args.confirmScheduledPublish)
+        confirmScheduledPublish: true
+      }));
+      if (steps[steps.length - 1].status === STATUS.done) await profile.context.close().catch(() => {});
+    } else if (closePolicy.policy === PUBLISH_CLOSE_POLICIES.immediateSaveDraftExit) {
+      steps.push(await maybeSaveDraftAndExit({
+        adapter,
+        page,
+        context: profile.context,
+        plan: adapterPlan,
+        steps
       }));
     }
   } catch (error) {
@@ -1565,14 +1598,12 @@ function resultPayload(plan, steps, profileName, dryRun) {
   };
 }
 
-function shouldEvaluateScheduledPublishConfirmation(plan, args) {
-  return isTruthyFlag(args.confirmScheduledPublish)
-    || (!!plan?.schedule?.mode && plan.schedule.mode !== "immediate");
-}
-
 function derivePublishAction(steps) {
   if (steps.some((item) => item.name === "scheduled_publish_confirmation" && item.status === STATUS.done)) {
     return "scheduled_publish_confirmed";
+  }
+  if (steps.some((item) => item.name === "draft_exit" && item.status === STATUS.done)) {
+    return "immediate_draft_saved_and_closed";
   }
   if (steps.some((item) => [STATUS.failed, STATUS.needsHuman, STATUS.retrying].includes(item.status))) {
     return "needs_human_before_publish";

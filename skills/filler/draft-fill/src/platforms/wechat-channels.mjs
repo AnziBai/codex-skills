@@ -1,6 +1,6 @@
 import { STATUS, getUploadAssets, saveArtifacts, step } from "../utils.mjs";
 
-import { collectionInspectResult, comparePlatformDateTime, formatPlatformDateTime, normalizeCollectionNames, normalizeXhsTag, platformIdentityStep, readVisibleFrameCollectionOptionTexts, redactedTextEvidence, textContainsContentFingerprint } from "./common.mjs";
+import { collectionInspectResult, comparePlatformDateTime, formatPlatformDateTime, normalizeCollectionNames, normalizeXhsTag, platformIdentityStep, readVisibleFrameCollectionOptionTexts, redactedTextEvidence, saveDraftWithVisibleButton, textContainsContentFingerprint } from "./common.mjs";
 
 export const wechatChannelsAdapter = {
     async run(ctx) {
@@ -22,6 +22,9 @@ export const wechatChannelsAdapter = {
       steps.push(await verifyWechatChannelsPublishBoundary(frame));
       await saveArtifacts(page, ctx.logDir, "wechat-channels-final");
       return steps;
+    },
+    async saveDraftAndExit({ page }) {
+      return saveDraftWithVisibleButton(page, "WeChat Channels", /^(保存草稿|暂存草稿|存草稿|存为草稿)$/);
     }
   };
 

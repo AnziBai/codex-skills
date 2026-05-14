@@ -1,6 +1,6 @@
 import { STATUS, platformPublishUrl, saveArtifacts, step } from "../utils.mjs";
 
-import { collectionInspectResult, dismissKnownOverlays, escapeRegExp, expectText, formatPlatformDateTime, normalizeCollectionNames, normalizeXhsTag, platformIdentityStep, readLocatorValue, readVisibleCollectionOptionTexts, shouldStopEarly, uploadFiles, verifyPublishBoundary } from "./common.mjs";
+import { collectionInspectResult, dismissKnownOverlays, escapeRegExp, expectText, formatPlatformDateTime, normalizeCollectionNames, normalizeXhsTag, platformIdentityStep, readLocatorValue, readVisibleCollectionOptionTexts, saveDraftWithVisibleButton, shouldStopEarly, uploadFiles, verifyPublishBoundary } from "./common.mjs";
 
 export const xiaohongshuAdapter = {
     async run(ctx) {
@@ -23,6 +23,9 @@ export const xiaohongshuAdapter = {
       steps.push(await verifyPublishBoundary(page));
       await saveArtifacts(page, ctx.logDir, "xiaohongshu-final");
       return steps;
+    },
+    async saveDraftAndExit({ page }) {
+      return saveDraftWithVisibleButton(page, "Xiaohongshu", /^(保存草稿|暂存草稿|存草稿|存为草稿|保存并离开)$/);
     }
   };
 

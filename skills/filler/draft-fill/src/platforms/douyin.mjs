@@ -1,6 +1,6 @@
 import { STATUS, getUploadAssets, platformPublishUrl, saveArtifacts, step } from "../utils.mjs";
 
-import { collectionInspectResult, comparePlatformDateTime, dismissKnownOverlays, escapeRegExp, expectText, fillFirst, formatPlatformDateTime, normalizeCollectionNames, normalizeXhsTag, platformIdentityStep, readLocatorValue, readVisibleCollectionOptionTexts, shouldStopEarly, textContainsContentFingerprint, verifyPublishBoundary, verifyVisibleUploadedImages, waitForUploadProgress } from "./common.mjs";
+import { collectionInspectResult, comparePlatformDateTime, dismissKnownOverlays, escapeRegExp, expectText, fillFirst, formatPlatformDateTime, normalizeCollectionNames, normalizeXhsTag, platformIdentityStep, readLocatorValue, readVisibleCollectionOptionTexts, saveDraftWithVisibleButton, shouldStopEarly, textContainsContentFingerprint, verifyPublishBoundary, verifyVisibleUploadedImages, waitForUploadProgress } from "./common.mjs";
 
 export const douyinAdapter = {
     async run(ctx) {
@@ -27,6 +27,9 @@ export const douyinAdapter = {
       steps.push(await verifyPublishBoundary(page));
       await saveArtifacts(page, ctx.logDir, "douyin-final");
       return steps;
+    },
+    async saveDraftAndExit({ page }) {
+      return saveDraftWithVisibleButton(page, "Douyin", /^(保存草稿|暂存草稿|存草稿|存为草稿)$/);
     }
   };
 

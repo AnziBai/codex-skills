@@ -11,6 +11,10 @@ browser draft filling, result summaries, diagnostics, or teammate handoff.
 ## Hard Boundaries
 
 - Do not click a final public publish/submit/confirm button from automation.
+- Only scheduled publish confirmation may be clicked, and only when the plan is
+  scheduled, page readback verified the time, every critical draft-fill step is
+  done or intentionally skipped, and the operator passed the explicit runtime
+  flag `-ConfirmScheduledPublish`. `-ConfirmIntake` never implies this.
 - Do not bypass CAPTCHA, login checks, private APIs, or platform risk controls.
 - Do not commit or distribute Chrome profiles, cookies, local storage, account
   configs, real work dirs, logs, screenshots, DOM artifacts, temp outputs, or
@@ -47,7 +51,10 @@ decisions.
   drafts. WeChat Channels draft retention is unknown until the logged-in profile
   proves it.
 - Final publish boundary is a confirmation, not a question: automation prepares
-  and verifies the draft; a human reviews and performs the public publish click.
+  and verifies the draft; a human reviews and performs the public immediate
+  publish click. For scheduled runs, ask separately before using
+  `-ConfirmScheduledPublish`, and never pass it just because intake was
+  confirmed.
 - WeChat Channels can land on the image management page after login. The image
   publish entry is often an outer-page, upper-right `发布图文` button, not only a
   button inside the micro-app iframe. Inspect and click the outer-page entry
@@ -92,6 +99,8 @@ if (-not (Test-Path -LiteralPath $Publisher)) { throw "filler CLI not found: $Pu
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher preflight -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -Json
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher inspect-collections -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -Json
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -Json
+# Scheduled confirmation is a separate, strict runtime decision:
+& powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -ConfirmScheduledPublish -Json
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher result-summary -WorkDir ".\work" -Json
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher diagnose-failure -WorkDir ".\work" -TargetId "xhs-main-note" -Json
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher robustness-matrix -Json
@@ -102,6 +111,15 @@ requires `-ConfirmIntake`; only pass it after the operator answered preflight
 questions and reviewed confirmations. Use `-ConfirmAccountFingerprint`
 only after the operator has verified that the current profile is the intended
 account and `draft-plan.json` contains the expected `account_fingerprint`.
+Use `-ConfirmScheduledPublish` only for a scheduled plan after the operator
+explicitly authorized clicking the platform's scheduled-publish confirmation.
+It is not allowed for immediate publishing.
+
+For collection choice, prefer `inspect-collections` first. The CLI trusts only a
+fresh account-bound collection cache, then runs deterministic semantic matching
+against the built-in taxonomy or `draft-plan.collection_taxonomy_path`. It picks
+an existing broad collection only on high confidence; ambiguity, stale cache, or
+no match returns `needs_human`.
 
 Use `open-profile` or its alias `login-profile` when the operator needs to log
 in before a real run. It opens the exact persistent profile path used later by

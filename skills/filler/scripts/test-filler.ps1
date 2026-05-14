@@ -237,6 +237,8 @@ try {
   Assert-True ($draftFillJson.profile_name -eq "xhs-test") "draft-fill should honor ProfileName"
   Assert-True (Test-Path (Join-Path $copyWork "draft-fill-result.json")) "draft-fill should create draft-fill-result.json"
   Assert-True (Test-Path (Join-Path $copyWork "logs\xhs-main-note\run.json")) "draft-fill should write target run log"
+  $draftFillDryRunWithScheduledConfirm = Invoke-Publisher -PublisherArgs @("draft-fill", "-WorkDir", $copyWork, "-TargetId", "xhs-main-note", "-ProfileName", "xhs-test", "-DryRun", "-ConfirmScheduledPublish", "-Json")
+  Assert-True ($draftFillDryRunWithScheduledConfirm.Code -eq 0) "draft-fill should accept explicit ConfirmScheduledPublish flag, got $($draftFillDryRunWithScheduledConfirm.Code): stdout=$($draftFillDryRunWithScheduledConfirm.Stdout) stderr=$($draftFillDryRunWithScheduledConfirm.Stderr)"
   $draftPlanDouyinOverwrite = Invoke-Publisher -PublisherArgs @("draft-plan", "-WorkDir", $copyWork, "-TargetId", "douyin-main-video", "-Json")
   Assert-True ($draftPlanDouyinOverwrite.Code -eq 0) "draft-plan should allow another target in the same workdir"
   $draftFillAfterOverwrite = Invoke-Publisher -PublisherArgs @("draft-fill", "-WorkDir", $copyWork, "-TargetId", "xhs-main-note", "-ProfileName", "xhs-test", "-DryRun", "-Json")

@@ -212,6 +212,10 @@ Inspect collections when requested:
 `profiles/<profile>/collection-cache.json`. The cache is local evidence for that
 profile only and must not be committed. Draft filling trusts the cache only when
 the profile, platform, collection, freshness, and account fingerprint match.
+After the cache is trusted, the CLI performs deterministic semantic collection
+matching against the built-in taxonomy or `draft-plan.collection_taxonomy_path`.
+It selects an existing broad collection only on high confidence; ambiguous or
+stale choices return `needs_human` instead of clicking the first option.
 
 Use `-ConfirmAccountFingerprint` only after the operator verifies the visible
 logged-in account and the plan includes the intended `account_fingerprint`:
@@ -237,6 +241,15 @@ handled:
 
 ```powershell
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -Json
+```
+
+For scheduled plans, clicking the platform's scheduled-publish confirmation is a
+separate explicit decision. `-ConfirmIntake` does not imply it. Use this only
+after the operator confirms the schedule and accepts the CLI clicking the exact
+scheduled confirmation button; immediate publish buttons remain manual:
+
+```powershell
+& powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -ConfirmScheduledPublish -Json
 ```
 
 Afterward, summarize the result:

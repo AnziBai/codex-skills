@@ -8,6 +8,7 @@ import { accountFingerprintFromPlan, collectionCacheSummary, readCollectionCache
 import { planWithResolvedCollection, resolveCollectionDecision } from "./collection-matcher.mjs";
 import { ResultSummaryInputError, summarizeResultFile } from "./result-summary.mjs";
 import { RobustnessMatrixInputError, runRobustnessMatrix } from "./robustness-matrix.mjs";
+import { maybeConfirmScheduledPublish } from "./scheduled-publish.mjs";
 import {
   STATUS,
   defaultProfileName,
@@ -1508,6 +1509,14 @@ async function draftFill(args) {
     }
     const adapterSteps = await adapter.run({ page, plan: adapterPlan, logDir, profileName, workDir });
     steps.push(...adapterSteps);
+    if (shouldEvaluateScheduledPublishConfirmation(adapterPlan, args)) {
+      steps.push(await maybeConfirmScheduledPublish({
+        page,
+        plan: adapterPlan,
+        steps,
+        confirmScheduledPublish: isTruthyFlag(args.confirmScheduledPublish)
+      }));
+    }
   } catch (error) {
     if (error instanceof ProfileLockHeldError) return exit(6, error.payload, args.json);
     if (isPersistentProfileSessionOpenError(error)) {
@@ -1551,8 +1560,24 @@ function resultPayload(plan, steps, profileName, dryRun) {
     stop_before_publish: true,
     ran_at: new Date().toISOString(),
     overall_status: overallStatus(steps),
+    publish_action: derivePublishAction(steps),
     steps
   };
+}
+
+function shouldEvaluateScheduledPublishConfirmation(plan, args) {
+  return isTruthyFlag(args.confirmScheduledPublish)
+    || (!!plan?.schedule?.mode && plan.schedule.mode !== "immediate");
+}
+
+function derivePublishAction(steps) {
+  if (steps.some((item) => item.name === "scheduled_publish_confirmation" && item.status === STATUS.done)) {
+    return "scheduled_publish_confirmed";
+  }
+  if (steps.some((item) => [STATUS.failed, STATUS.needsHuman, STATUS.retrying].includes(item.status))) {
+    return "needs_human_before_publish";
+  }
+  return "stopped_at_boundary";
 }
 
 async function exit(code, payload, json) {

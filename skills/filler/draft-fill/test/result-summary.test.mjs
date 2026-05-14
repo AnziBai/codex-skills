@@ -38,7 +38,11 @@ await withWorkDir({
     "done_steps",
     "needs_human_steps",
     "failed_steps",
-    "publish_boundary_preserved"
+    "publish_boundary_preserved",
+    "scheduled_publish_confirmed",
+    "publish_action",
+    "schedule_requested_at",
+    "schedule_actual_at"
   ]);
   assert.equal(summary.ok, true);
   assert.equal(summary.publish_boundary_preserved, true);
@@ -70,6 +74,26 @@ await withWorkDir({
     { name: "topics", message: "\u8bdd\u9898\u9009\u62e9\u5931\u8d25\u3002" }
   ]);
   assert.equal(summary.publish_boundary_preserved, true);
+});
+
+await withWorkDir({
+  work_id: "work-scheduled-confirmed",
+  target_id: "douyin-scheduled-1",
+  platform: "douyin",
+  overall_status: "done",
+  publish_action: "scheduled_publish_confirmed",
+  steps: [
+    { name: "schedule", status: "done", message: "Scheduled publish selected: 2026-05-15 20:00.", details: { requested_at: "2026-05-15 20:00", actual_at: "2026-05-15 20:00" } },
+    { name: "publish_boundary", status: "done", message: "Final publish button count=1; not clicked." },
+    { name: "scheduled_publish_confirmation", status: "done", message: "Scheduled publish confirmation clicked intentionally.", details: { click_count: 1 } }
+  ]
+}, async (workDir) => {
+  const summary = await summarizeResultFile(workDir);
+  assert.equal(summary.ok, true);
+  assert.equal(summary.publish_action, "scheduled_publish_confirmed");
+  assert.equal(summary.scheduled_publish_confirmed, true);
+  assert.equal(summary.schedule_requested_at, "2026-05-15 20:00");
+  assert.equal(summary.schedule_actual_at, "2026-05-15 20:00");
 });
 
 await withWorkDir({

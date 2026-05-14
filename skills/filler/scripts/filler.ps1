@@ -18,6 +18,7 @@
   [switch]$DryRun,
   [switch]$ConfirmAccountFingerprint,
   [switch]$ConfirmIntake,
+  [switch]$ConfirmScheduledPublish,
   [switch]$Json
 )
 
@@ -110,7 +111,8 @@ function Invoke-DraftFillNode {
     [bool]$DryRun,
     [bool]$ConfirmAccountFingerprint,
     [bool]$JsonOutput,
-    [bool]$ConfirmIntake = $false
+    [bool]$ConfirmIntake = $false,
+    [bool]$ConfirmScheduledPublish = $false
   )
   $runner = Join-Path (Split-Path -Parent $PSScriptRoot) "draft-fill\src\cli.mjs"
   if (!(Test-Path -LiteralPath $runner)) { throw "Draft-fill runner not found: $runner" }
@@ -121,6 +123,7 @@ function Invoke-DraftFillNode {
   if ($DryRun) { $args += "--dry-run" }
   if ($ConfirmAccountFingerprint) { $args += "--confirm-account-fingerprint" }
   if ($ConfirmIntake) { $args += "--confirm-intake" }
+  if ($ConfirmScheduledPublish) { $args += "--confirm-scheduled-publish" }
   if ($JsonOutput) { $args += "--json" }
   if (-not [string]::IsNullOrWhiteSpace($Platform)) { $args += @("--platform", $Platform) }
   if (-not [string]::IsNullOrWhiteSpace($Surface)) { $args += @("--surface", $Surface) }
@@ -1138,7 +1141,7 @@ try {
     if ([string]::IsNullOrWhiteSpace($WorkDir)) { throw "-WorkDir is required." }
     $workRootForFill = Get-WorkPath $WorkDir
     Ensure-DraftPlan $workRootForFill $TargetId
-    Invoke-DraftFillNode "draft-fill" $workRootForFill $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json $ConfirmIntake
+    Invoke-DraftFillNode "draft-fill" $workRootForFill $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json $ConfirmIntake $ConfirmScheduledPublish
   }
 
   if ($Command -eq "inspect-wechat-channels") {

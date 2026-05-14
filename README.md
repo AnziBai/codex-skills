@@ -87,7 +87,8 @@ human final publish click
 - 使用专用 Chrome profile 复用登录态。
 - 自动上传图片或视频。
 - 自动填写标题、正文、tag token、合集、原创或个人观点声明、音乐和定时设置。
-- 停在最终公开发布按钮前，由人工最后确认。
+- 基于已缓存的账号合集做确定性语义匹配，只有高置信匹配已有宽泛合集时才自动选择。
+- 停在最终公开发布按钮前，由人工最后确认；定时发布确认必须额外显式授权。
 - 输出 `draft-fill-result.json`、`logs/<target-id>/run.json` 和截图证据。
 
 ### 适合
@@ -122,6 +123,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\fil
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -Json
+```
+
+如果这是已经读回验证过时间的定时发布，并且你明确允许 CLI 点击平台的“定时发布”确认按钮：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -ConfirmScheduledPublish -Json
 ```
 
 失败诊断：

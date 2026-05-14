@@ -10,7 +10,11 @@ const SUMMARY_FIELDS = [
   "done_steps",
   "needs_human_steps",
   "failed_steps",
-  "publish_boundary_preserved"
+  "publish_boundary_preserved",
+  "scheduled_publish_confirmed",
+  "publish_action",
+  "schedule_requested_at",
+  "schedule_actual_at"
 ];
 
 export class ResultSummaryInputError extends Error {
@@ -48,8 +52,15 @@ export function summarizeResult(result) {
   const statusOk = typeof result?.ok === "boolean"
     ? result.ok
     : result?.overall_status === "done";
+  const scheduledPublishConfirmed = steps.some((item) => (
+    item?.name === "scheduled_publish_confirmation"
+    && item?.status === "done"
+    && Number(item?.details?.click_count || 0) === 1
+  )) || result?.publish_action === "scheduled_publish_confirmed";
+  const scheduleInfo = scheduleTimes(steps);
+  const publishAction = result?.publish_action || derivePublishAction(steps);
   const summary = {
-    ok: statusOk && publishBoundaryPreserved,
+    ok: statusOk && (publishBoundaryPreserved || scheduledPublishConfirmed),
     work_id: result?.work_id ?? null,
     target_id: result?.target_id ?? null,
     platform: result?.platform ?? null,
@@ -57,7 +68,11 @@ export function summarizeResult(result) {
     done_steps: summarizeSteps(steps, "done"),
     needs_human_steps: summarizeSteps(steps, "needs_human"),
     failed_steps: summarizeSteps(steps, "failed"),
-    publish_boundary_preserved: publishBoundaryPreserved
+    publish_boundary_preserved: publishBoundaryPreserved,
+    scheduled_publish_confirmed: scheduledPublishConfirmed,
+    publish_action: publishAction,
+    schedule_requested_at: scheduleInfo.requested_at,
+    schedule_actual_at: scheduleInfo.actual_at
   };
   return Object.fromEntries(SUMMARY_FIELDS.map((field) => [field, summary[field]]));
 }
@@ -80,4 +95,26 @@ function messageSaysFinalPublishWasNotClicked(message) {
     || lower.includes("did not click")
     || /\u672a\u70b9\u51fb|\u6ca1\u6709\u70b9\u51fb/.test(text);
   return hasFinalPublishContext && hasNotClickedEvidence;
+}
+
+function derivePublishAction(steps) {
+  if (steps.some((item) => item?.name === "scheduled_publish_confirmation" && item?.status === "done")) {
+    return "scheduled_publish_confirmed";
+  }
+  if (steps.some((item) => ["failed", "needs_human", "retrying"].includes(item?.status))) {
+    return "needs_human_before_publish";
+  }
+  return "stopped_at_boundary";
+}
+
+function scheduleTimes(steps) {
+  const scheduleStep = [...steps].reverse().find((item) => item?.name === "schedule") || null;
+  if (!scheduleStep) return { requested_at: null, actual_at: null };
+  const requestedAt = scheduleStep.details?.requested_at || scheduleStep.details?.requestedAt || null;
+  const actualAt = scheduleStep.details?.actual_at || scheduleStep.details?.actualAt || null;
+  const messageTime = String(scheduleStep.message || "").match(/(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2})/)?.[1]?.replace("T", " ") || null;
+  return {
+    requested_at: requestedAt ? String(requestedAt) : messageTime,
+    actual_at: actualAt ? String(actualAt) : messageTime
+  };
 }

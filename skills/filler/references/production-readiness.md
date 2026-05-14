@@ -55,9 +55,15 @@ After setup, open the relevant profile through the first real or diagnostic run
 and log into the platform. The profile folder is local secret-bearing state and
 must not be copied between teammates.
 
-## Required Intake Before Real Runs
+## Guided Intake Before Real Runs
 
-Before real skill/CLI/browser execution, the assistant must ask or confirm:
+Before real skill/CLI/browser execution, the assistant must inspect first and
+ask second. Never present a long free-form template as the first response.
+Infer safe defaults from the work directory, manifest, selected copy,
+draft-plan, profile names, and collection cache, then ask only the unresolved
+1-3 decisions.
+
+Confirm or ask about:
 
 - Target platforms and target account/profile for each platform.
 - Where finished images/videos are stored.
@@ -76,16 +82,28 @@ Before real skill/CLI/browser execution, the assistant must ask or confirm:
   performs the final click.
 
 Do not treat preflight as a substitute for user-facing intake. Preflight is the
-machine check; intake is where ambiguous product, account, cadence, and platform
-decisions become explicit.
+machine check and structured prompt source; intake is where ambiguous product,
+account, cadence, and platform decisions become explicit without making the
+operator type a technical form.
 
 Preflight mirrors that intake with stable `questions` / `confirmations` IDs:
-`target_platforms`, `asset_location_order`, `scheduling_needed`,
-`batch_schedule_cadence`, and `douyin_unscheduled_draft_warning`. Exit code `4`
-is expected when any unresolved intake question remains. Non-dry `draft-fill`
-will also stop with exit code `4` until the operator reruns it with
+`target_platforms`, `asset_location_order`, `profile_login`,
+`scheduling_needed`, `batch_schedule_cadence`, and
+`douyin_unscheduled_draft_warning`. Each question should include
+`input_mode`, `options`, and `default_option` whenever it can be answered as a
+single-choice prompt. The `interaction.primary_question_ids` array is the
+recommended first round for wrappers or agents that can render choice chips.
+Exit code `4` is expected when any unresolved intake question remains. Non-dry
+`draft-fill` will also stop with exit code `4` until the operator reruns it with
 `-ConfirmIntake`, which is the explicit acknowledgement that the questions and
 confirmations were handled before real browser work.
+
+Preflight also performs setup checks every time: draft-fill package metadata,
+Playwright importability, safe profile name, and profile folder existence. If a
+profile folder is missing, the CLI creates it and returns `profile_login` so the
+operator only has to log in once. Platform adapters then check the opened page
+for login/auth routes and stop with `needs_human` instead of continuing into
+broken selectors.
 
 ## Work And Asset Readiness
 

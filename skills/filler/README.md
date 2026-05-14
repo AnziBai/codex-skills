@@ -13,7 +13,9 @@ stops before the final public publish action.
 - Do not commit profiles, cookies, local storage, account configs, real work
   dirs, logs, screenshots, DOM artifacts, temp outputs, or `node_modules`.
 - Treat `needs_human` and exit code `4` as a safe stop, not a crash.
-- Ask the real-run intake questions before touching a live platform page.
+- Run guided preflight before touching a live platform page. Do not ask the
+  operator to fill a long form; infer defaults and ask only the remaining 1-3
+  decisions with clickable choices when available.
 
 ## One-Time Setup
 
@@ -55,9 +57,24 @@ is using that profile, then remove only the matching lock file under
 `skills/filler/profiles/<profile>.draft-fill.lock`. Do not delete the
 profile folder unless you intentionally want to log in again.
 
-## Real-Run Intake Checklist
+## Guided Real-Run Intake
 
-Before real skill/CLI/browser runs, confirm these decisions in plain language:
+Before real skill/CLI/browser runs, inspect first and ask second. The preferred
+flow is:
+
+1. Read `manifest.json`, `selected-copy.json`, `draft-plan.json`, and the work
+   directory shape.
+2. Auto-check local setup: draft-fill package files, Playwright, browser profile
+   name, profile folder, collection cache, and target platform adapter.
+3. Confirm inferred facts in prose.
+4. Ask only the unresolved 1-3 decisions. Use `questions[].options` from
+   `preflight` as clickable choices in any wrapper UI.
+
+The operator should not see a blank technical template. If the client supports
+choice chips, render the options directly. If it does not, ask compact numbered
+choices and keep exact-path/time input for the rare cases where it is necessary.
+
+Typical decisions:
 
 - Target platforms: Xiaohongshu, Douyin, WeChat Channels, WeChat Official
   Account, WeChat sticker posts, or dry run.
@@ -81,6 +98,19 @@ Before real skill/CLI/browser runs, confirm these decisions in plain language:
 - Music defaults, especially Douyin recommended music.
 - Final publish boundary: the tool prepares and verifies the draft; the human
   operator reviews and performs the public publish click.
+
+Recommended defaults for low-friction use:
+
+- Platforms: use manifest targets; if the user says "三平台", use Xiaohongshu,
+  Douyin, and WeChat Channels.
+- Assets: numbered images in each work folder upload in numeric order, for
+  example `1.png` to `5.png`.
+- Title optimization: on.
+- Scheduling: ask as a choice; do not assume batch cadence.
+- Collections: infer broad reusable collections from product knowledge; do not
+  create narrow one-off collections automatically.
+- Music: Douyin and WeChat Channels default to first recommended music unless
+  the user opts out.
 
 ## Work Directory Shape
 
@@ -134,12 +164,21 @@ Run preflight before opening a real platform page:
 ```
 
 If preflight returns `needs_human` or exit code `4`, answer the returned
-`questions` and review the `confirmations`. Typical questions cover title
-optimization, tags, collection, scheduling, profile choice, and collection
-inspection. Real-run intake uses stable IDs so operators and wrappers can route
-the answers: `target_platforms`, `asset_location_order`,
-`scheduling_needed`, `batch_schedule_cadence`, and the
-`douyin_unscheduled_draft_warning` confirmation when Douyin has no schedule.
+`questions` and review the `confirmations`. Each question includes
+`input_mode`, `options`, and `default_option` when it can be rendered as a
+single-choice prompt. The response also includes `interaction`, whose
+`primary_question_ids` keeps wrappers from showing more than three questions in
+one round. Typical stable IDs include `target_platforms`,
+`asset_location_order`, `profile_login`, `scheduling_needed`,
+`batch_schedule_cadence`, and the `douyin_unscheduled_draft_warning`
+confirmation when Douyin has no schedule.
+
+`preflight` also checks configuration before a real run. It verifies package
+metadata, Playwright importability, profile name safety, and profile folder
+existence. Missing profile folders are created automatically; the remaining
+manual step is logging into the visible dedicated browser profile once. During
+`draft-fill`, platform adapters detect login/auth pages and return
+`needs_human` with a clear login message instead of continuing blindly.
 
 Inspect collections when requested:
 

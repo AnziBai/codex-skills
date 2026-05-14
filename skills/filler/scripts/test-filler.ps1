@@ -274,6 +274,11 @@ try {
   $xhsQuestionIds = @($xhsPreflightJson.questions | ForEach-Object { $_.id })
   Assert-True ($xhsQuestionIds -contains "inspect_collections") "xhs preflight should request inspect-collections before real draft fill"
   Assert-True ($xhsQuestionIds -contains "account_fingerprint") "xhs preflight should ask for account fingerprint before trusting collection cache"
+  $xhsInspectQuestion = @($xhsPreflightJson.questions | Where-Object { $_.id -eq "inspect_collections" })[0]
+  Assert-True ($xhsInspectQuestion.input_mode -eq "single_choice") "inspect_collections should be renderable as a single-choice prompt"
+  Assert-True (@($xhsInspectQuestion.options).Count -ge 2) "inspect_collections should include clickable options"
+  Assert-True ($xhsPreflightJson.interaction.max_questions_per_round -eq 3) "preflight should cap guided intake to three primary questions"
+  Assert-True (@($xhsPreflightJson.interaction.primary_question_ids).Count -le 3) "preflight should expose at most three primary question ids"
   $xhsConfirmationIds = @($xhsPreflightJson.confirmations | ForEach-Object { $_.id })
   Assert-True ($xhsConfirmationIds -contains "target_platforms") "preflight should confirm target platforms before real work"
   Assert-True ($xhsConfirmationIds -contains "asset_location_order") "preflight should confirm asset location and upload order before real work"
@@ -350,6 +355,10 @@ try {
   Assert-True ($questionIds -contains "collection") "preflight should ask collection when product knowledge cannot infer one"
   Assert-True ($questionIds -contains "schedule") "preflight should ask scheduling choice for immediate work"
   Assert-True ($questionIds -contains "scheduling_needed") "preflight should ask whether scheduling is needed with a stable intake id"
+  $scheduleQuestion = @($incompletePreflightJson.questions | Where-Object { $_.id -eq "scheduling_needed" })[0]
+  Assert-True ($scheduleQuestion.input_mode -eq "single_choice") "scheduling_needed should be a single-choice guided prompt"
+  Assert-True ($scheduleQuestion.default_option -eq "none") "scheduling_needed should expose a recommended no-schedule default"
+  Assert-True (@($scheduleQuestion.options | Where-Object { $_.recommended -eq $true }).Count -ge 1) "scheduling_needed should mark a recommended option"
   $incompleteConfirmationIds = @($incompletePreflightJson.confirmations | ForEach-Object { $_.id })
   Assert-True ($incompleteConfirmationIds -contains "target_platforms") "preflight should confirm target platforms when manifest target intake is present"
   Assert-True ($incompleteConfirmationIds -contains "asset_location_order") "preflight should confirm asset location/order when manifest asset intake is present"
@@ -362,6 +371,7 @@ try {
   Assert-True (@($incompleteDraftFillRealJson.steps | Where-Object { $_.name -eq "preflight_intake" -and $_.status -eq "needs_human" }).Count -eq 1) "unconfirmed real draft-fill should include preflight_intake gate"
   Assert-True (@($incompleteDraftFillRealJson.questions | ForEach-Object { $_.id }) -contains "scheduling_needed") "draft-fill intake gate should return preflight questions"
   Assert-True (@($incompleteDraftFillRealJson.confirmations | ForEach-Object { $_.id }) -contains "final_publish_boundary") "draft-fill intake gate should return preflight confirmations"
+  Assert-True ($incompleteDraftFillRealJson.interaction.max_questions_per_round -eq 3) "draft-fill intake gate should include guided interaction metadata"
   Assert-True (-not (Test-Path -LiteralPath $intakeGateLock)) "unconfirmed intake should not acquire a browser profile lock"
 
   $scheduledBatchWork = Join-Path $root "scheduled-batch-work"

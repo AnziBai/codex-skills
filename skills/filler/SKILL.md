@@ -20,30 +20,45 @@ browser draft filling, result summaries, diagnostics, or teammate handoff.
 - Treat `publish-result.json` and `draft-fill-result.json` as local evidence,
   not as files to commit.
 
-## Required Intake Before Real Runs
+## Guided Intake Before Real Runs
 
-Before running real skill/CLI/browser work, ask or confirm:
+Do not dump a long form or ask the user to fill a template. First inspect the
+work directory, manifest, draft plan, known profiles, collection cache, and the
+user's latest request. Infer safe defaults, then ask only the unresolved
+decisions.
 
-- Target platforms and target account/profile for each platform.
-- Where the finished images/videos are stored, the folder structure, and the
-  exact image/video order to upload.
-- Whether scheduling is needed.
-- For multiple platforms or multiple works, the interval/cadence per platform.
-- Whether titles should be optimized for distribution.
-- Collection strategy: desired collection, whether to inspect collections, and
-  whether a broad collection is better than a one-off one.
-- Platform declarations: Xiaohongshu original declaration, Douyin personal
-  opinion/declaration, and WeChat Channels declaration/category only after the
-  logged-in UI confirms what exists.
-- Music defaults, especially Douyin recommended/default music behavior.
-- Final publish boundary: automation prepares and verifies the draft; a human
-  reviews and performs the public publish action.
+- Ask at most 1-3 questions in one round. Prefer clickable single-choice
+  options when the client supports them; otherwise present the same choices as
+  short numbered bullets.
+- Put the recommended option first and mark it clearly. Avoid free-form input
+  unless the operator must provide a path, exact time, or exact collection name.
+- Confirm inferred facts instead of asking for them: target platforms, account
+  profile, asset folder/order, title source, tags, collection, schedule, and
+  final publish boundary.
+- Before any real browser work, run `preflight`. It now performs config checks
+  for draft-fill package files, Playwright availability, profile validity, and
+  profile creation. If a profile is missing, it is created automatically and the
+  user is only asked to log in once.
+- Login itself is never bypassed. Platform adapters check the opened page for
+  login/auth URLs and stop with `needs_human` instead of failing mysteriously.
+- If scheduling is absent, warn that Douyin desktop Creator Center may not
+  preserve drafts like Xiaohongshu. A Douyin batch may require scheduling or
+  finalizing one item before preparing the next. Xiaohongshu can usually save
+  drafts. WeChat Channels draft retention is unknown until the logged-in profile
+  proves it.
+- Final publish boundary is a confirmation, not a question: automation prepares
+  and verifies the draft; a human reviews and performs the public publish click.
 
-If the user does not want scheduling, warn before Douyin desktop Creator Center
-runs that Douyin may not preserve drafts like Xiaohongshu. A Douyin batch may
-require scheduling or finalizing one item before preparing the next. Xiaohongshu
-can usually save drafts. WeChat Channels draft retention is unknown and
-account-specific until verified for the logged-in profile.
+Good intake shape:
+
+```text
+我已识别：小红书 + 抖音，素材来自 21-40 的 18 个子文件夹，每组按 1.png 到 5.png 上传；标题默认从首图/文件夹名优化；最终发布按钮由人工点击。
+
+还需要你点选 3 项：
+1. 是否定时：不定时 (Recommended) / 单条定时 / 批量定时
+2. 平台：小红书+抖音 (Recommended) / 三平台 / 自定义
+3. 合集策略：自动选择宽泛合集 (Recommended) / 跳过合集 / 我指定合集
+```
 
 ## Command Shape
 

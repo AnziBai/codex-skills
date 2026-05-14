@@ -162,6 +162,7 @@ async function preflight(args) {
     steps.push(step("draft_plan", errors.length === 0 ? STATUS.done : STATUS.failed, errors.length === 0 ? "draft-plan.json valid." : errors.join("; ")));
     collectPreflightPrompts(plan, manifest, questions, confirmations);
   }
+  await collectRuntimeReadiness(steps);
 
   const profileName = args.profileName || (await inferProfileName(planPath));
   if (profileName) {
@@ -169,28 +170,32 @@ async function preflight(args) {
     if (!profileValidation.ok) {
       steps.push(step("browser_profile", STATUS.failed, profileValidation.message, { error_code: profileValidation.error_code }));
     } else {
-      const profilePath = profileDir(profileName);
-      const profileExists = await exists(profilePath);
-      steps.push(step(
-        "browser_profile",
-        profileExists ? STATUS.done : STATUS.needsHuman,
-        profileExists ? `Browser profile is initialized: ${profileName}` : `Browser profile is not initialized: ${profileName}`,
-        { profile_name: profileName }
-      ));
+      const readiness = await ensureProfileReadiness(steps, profileName, plan?.platform, { autoCreate: true });
+      if (readiness.created) addQuestion(questions, profileLoginQuestion(plan?.platform, profileName));
     }
   } else {
-    questions.push({
+    addQuestion(questions, {
       id: "profile_name",
-      question: "Which browser profile should this target use?",
-      why: "Each platform account needs a dedicated persistent Chrome profile so login state and account selection are stable."
+      question: "这次发布要使用哪个浏览器 Profile？",
+      why: "Each platform account needs a dedicated persistent Chrome profile so login state and account selection are stable.",
+      ...choiceSet([
+        choice("默认 Profile (Recommended)", `使用 ${defaultProfileName(plan?.platform) || "平台默认 Profile"}。`, "default", true),
+        choice("换一个 Profile", "提供另一个已登录的 Profile 名称。", "custom_profile"),
+        choice("先配置登录", "暂停草稿填写，先完成 Profile 初始化和登录。", "setup_first")
+      ], "default")
     });
   }
   if (plan?.collection && profileName && validateProfileName(profileName).ok) {
     if (!accountFingerprintFromPlan(plan)) {
-      questions.push({
+      addQuestion(questions, {
         id: "account_fingerprint",
-        question: "What stable account_fingerprint should be recorded for this profile before trusting collection cache?",
-        why: "Collection caches are account-specific. Without a verified account fingerprint, inspect-collections can discover options but draft-fill will not trust them automatically."
+        question: "合集缓存要如何绑定当前账号？",
+        why: "Collection caches are account-specific. Without a verified account fingerprint, inspect-collections can discover options but draft-fill will not trust them automatically.",
+        ...choiceSet([
+          choice("跳过合集自动化 (Recommended)", "本次不信任合集缓存，避免选错账号合集。", "skip_collection_cache", true),
+          choice("使用账号 ID", "人工确认已登录账号后，把 plan account_id 作为临时指纹。", "use_account_id"),
+          choice("填写账号指纹", "提供这个 Profile 的稳定 account_fingerprint。", "provide_fingerprint")
+        ], "skip_collection_cache")
       });
     }
     const cacheStatus = await readCollectionCache({
@@ -201,10 +206,15 @@ async function preflight(args) {
     const cacheStep = collectionCacheStep(cacheStatus, plan.collection);
     steps.push(cacheStep);
     if (cacheStep.status === STATUS.needsHuman) {
-      questions.push({
+      addQuestion(questions, {
         id: "inspect_collections",
-        question: `Run inspect-collections for ${plan.platform}/${profileName} before draft-fill?`,
-        why: "The requested collection must already exist in the profile cache; narrow collections are not auto-created."
+        question: `是否先检查 ${plan.platform}/${profileName} 的合集列表？`,
+        why: "The requested collection must already exist in the profile cache; narrow collections are not auto-created.",
+        ...choiceSet([
+          choice("检查合集 (Recommended)", "打开 Profile 一次，缓存页面可见合集选项。", "inspect", true),
+          choice("本次跳过合集", "自动填草稿，但不自动选择合集。", "skip"),
+          choice("人工选择合集", "停在草稿页，让操作者手动选择合集。", "manual")
+        ], "inspect")
       });
     }
   }
@@ -214,7 +224,7 @@ async function preflight(args) {
     : questions.length > 0 || steps.some((item) => item.status === STATUS.needsHuman)
       ? "needs_human"
       : "done";
-  const result = { ok: status === "done", command: "preflight", overall_status: status, steps, questions, confirmations };
+  const result = { ok: status === "done", command: "preflight", overall_status: status, steps, questions, confirmations, interaction: guidedInteraction(questions) };
   return exit(status === "failed" ? 2 : status === "needs_human" ? 4 : 0, result, args.json);
 }
 
@@ -240,41 +250,71 @@ function collectPreflightPrompts(plan, manifest, questions, confirmations) {
   if (!plan.title || looksLikeFilename(plan.title)) {
     addQuestion(questions, {
       id: "title_optimization",
-      question: "Should the title be optimized before draft filling?",
-      why: "The title is a distribution lever; file-like or internal titles should be rewritten before publishing."
+      question: "标题是否需要先优化？",
+      why: "The title is a distribution lever; file-like or internal titles should be rewritten before publishing.",
+      ...choiceSet([
+        choice("优化标题 (Recommended)", "先生成更适合平台分发的标题。", "optimize", true),
+        choice("保留原标题", "完全使用当前标题。", "keep_original"),
+        choice("只生成候选", "生成候选标题，等待人工选择。", "candidates_only")
+      ], "optimize")
     });
   }
   if (!Array.isArray(plan.tags) || plan.tags.length === 0) {
     addQuestion(questions, {
       id: "tags",
-      question: "Which platform tags/topics should be used?",
-      why: "Tags must be selected through the platform topic UI; empty tags reduce discoverability and can hide selector failures."
+      question: "平台话题/tag 怎么处理？",
+      why: "Tags must be selected through the platform topic UI; empty tags reduce discoverability and can hide selector failures.",
+      ...choiceSet([
+        choice("根据内容生成 (Recommended)", "根据标题、正文和产品知识生成 tag。", "generate", true),
+        choice("使用 manifest", "只使用 manifest.json 里已有的 tags。", "manifest"),
+        choice("我来指定", "向操作者询问精确平台 tag。", "provide")
+      ], "generate")
     });
   }
   if (!plan.collection) {
     addQuestion(questions, {
       id: "collection",
-      question: "Which broad collection should this work enter, or should collection selection be skipped?",
-      why: "Collection choice is content-aware and should not be guessed from one title word when product knowledge is missing."
+      question: "合集怎么处理？",
+      why: "Collection choice is content-aware and should not be guessed from one title word when product knowledge is missing.",
+      ...choiceSet([
+        choice("推断宽泛合集 (Recommended)", "根据产品知识选择可复用的宽泛合集。", "infer_broad", true),
+        choice("跳过合集", "本次草稿不选择合集。", "skip"),
+        choice("我指定合集", "询问精确的已有合集名称。", "provide")
+      ], "infer_broad")
     });
   }
   if (!plan.schedule || plan.schedule.mode === "immediate") {
     addQuestion(questions, {
       id: "scheduling_needed",
-      question: "Is scheduling needed for this target before any real draft work starts?",
-      why: "Scheduling changes batching order, platform cadence, and whether drafts can be safely prepared ahead of final publish."
+      question: "这次需要定时发布吗？",
+      why: "Scheduling changes batching order, platform cadence, and whether drafts can be safely prepared ahead of final publish.",
+      ...choiceSet([
+        choice("不定时 (Recommended)", "只准备草稿并停在发布前。", "none", true),
+        choice("单条定时", "询问这条作品的精确发布时间。", "single_schedule"),
+        choice("批量定时", "询问起始时间和平台间隔。", "batch_schedule")
+      ], "none")
     });
     addQuestion(questions, {
       id: "schedule",
-      question: "Publish immediately or schedule this draft?",
-      why: "Scheduling affects traffic cadence. For batches, collect start time and interval before filling drafts."
+      question: "发布模式选择哪一种？",
+      why: "Scheduling affects traffic cadence. For batches, collect start time and interval before filling drafts.",
+      ...choiceSet([
+        choice("立即草稿 (Recommended)", "保持不定时，停在最终发布按钮前。", "immediate", true),
+        choice("设置定时", "填写一个未来发布时间。", "scheduled"),
+        choice("稍后决定", "先不要进入依赖定时的草稿填写。", "ask_later")
+      ], "immediate")
     });
     collectUnscheduledWarnings(plan, manifest, confirmations);
   } else if (!plan.schedule.publish_at) {
     addQuestion(questions, {
       id: "schedule_time",
-      question: "What exact publish time should be used?",
-      why: "Scheduled publishing needs an explicit time with timezone to avoid accidental immediate publishing."
+      question: "要定时到哪个具体时间？",
+      why: "Scheduled publishing needs an explicit time with timezone to avoid accidental immediate publishing.",
+      ...choiceSet([
+        choice("询问精确时间 (Recommended)", "让操作者提供带时区的未来时间。", "ask_exact", true),
+        choice("下个 20:00", "如果平台允许，使用本地下一次 20:00。", "next_2000"),
+        choice("取消定时", "改回不定时后再填草稿。", "cancel_schedule")
+      ], "ask_exact")
     });
   } else {
     addConfirmation(confirmations, {
@@ -286,8 +326,13 @@ function collectPreflightPrompts(plan, manifest, questions, confirmations) {
   if (plan.platform === "douyin" && (!plan.music || plan.music.strategy === "none")) {
     addQuestion(questions, {
       id: "douyin_music",
-      question: "Should Douyin select recommended music?",
-      why: "The current production default is to choose the first recommended music unless the user opts out."
+      question: "抖音音乐怎么处理？",
+      why: "The current production default is to choose the first recommended music unless the user opts out.",
+      ...choiceSet([
+        choice("第一首推荐 (Recommended)", "选择推荐音乐面板里的第一首。", "first_recommended", true),
+        choice("不选音乐", "跳过音乐选择。", "none"),
+        choice("逐条询问", "看到具体素材后再决定。", "ask_each")
+      ], "first_recommended")
     });
   }
   if (plan.platform === "xiaohongshu") {
@@ -316,8 +361,13 @@ function collectPreflightPrompts(plan, manifest, questions, confirmations) {
     } else if (!plan.music || plan.music.strategy === "none") {
       addQuestion(questions, {
         id: "wechat_channels_music",
-        question: "Should WeChat Channels use no music or select the first recommended music item?",
-        why: "WeChat Channels music behavior is account/page specific; confirm the desired default before real draft filling."
+        question: "视频号音乐怎么处理？",
+        why: "WeChat Channels music behavior is account/page specific; confirm the desired default before real draft filling.",
+        ...choiceSet([
+          choice("第一首推荐 (Recommended)", "如果页面提供推荐音乐，就选第一首。", "first_recommended", true),
+          choice("不选音乐", "跳过音乐选择。", "none"),
+          choice("逐条询问", "看到页面后让操作者决定。", "ask_each")
+        ], "first_recommended")
       });
     }
   }
@@ -329,8 +379,13 @@ function collectManifestIntakePrompts(plan, manifest, questions, confirmations) 
   if (platforms.length === 0 || platforms.some((item) => !item.platform)) {
     addQuestion(questions, {
       id: "target_platforms",
-      question: "Which target platforms and accounts should this real run prepare?",
-      why: "The assistant must confirm platform/account scope before CLI or browser work so it does not prepare the wrong surface."
+      question: "这次要准备哪些平台和账号？",
+      why: "The assistant must confirm platform/account scope before CLI or browser work so it does not prepare the wrong surface.",
+      ...choiceSet([
+        choice("使用 manifest (Recommended)", "严格按 manifest.json 声明的 targets 准备。", "manifest_targets", true),
+        choice("三平台", "准备小红书、抖音和视频号。", "xhs_douyin_wechat_channels"),
+        choice("我来选择", "询问精确平台列表。", "choose")
+      ], "manifest_targets")
     });
   } else {
     addConfirmation(confirmations, {
@@ -348,8 +403,13 @@ function collectManifestIntakePrompts(plan, manifest, questions, confirmations) 
   } else {
     addQuestion(questions, {
       id: "asset_location_order",
-      question: "Where do the image/video assets live, and what exact folder/order structure should be uploaded?",
-      why: "Upload order must come from manifest/draft-plan data, not a visual guess or directory listing."
+      question: "素材路径和顺序怎么确认？",
+      why: "Upload order must come from manifest/draft-plan data, not a visual guess or directory listing.",
+      ...choiceSet([
+        choice("按 1..N 推断 (Recommended)", "每个作品文件夹按 1.png 到 N.png 上传。", "infer_numbered", true),
+        choice("使用 manifest", "只使用 manifest.json 声明的顺序。", "manifest"),
+        choice("我提供路径", "询问素材目录和排序规则。", "provide")
+      ], "infer_numbered")
     });
   }
 }
@@ -362,8 +422,13 @@ function collectBatchCadencePrompts(plan, manifest, questions) {
   if ((multiPlatform || multiWork) && !hasBatchCadence(manifest, targets)) {
     addQuestion(questions, {
       id: "batch_schedule_cadence",
-      question: "What interval/cadence should be used per platform for this scheduled batch?",
-      why: "Multi-platform or multi-work scheduled runs need explicit per-platform spacing; do not assume one global interval fits every platform."
+      question: "批量定时间隔怎么设置？",
+      why: "Multi-platform or multi-work scheduled runs need explicit per-platform spacing; do not assume one global interval fits every platform.",
+      ...choiceSet([
+        choice("每平台 30 分钟 (Recommended)", "同一平台作品之间间隔 30 分钟。", "30m", true),
+        choice("每平台 60 分钟", "同一平台作品之间间隔 60 分钟。", "60m"),
+        choice("我指定间隔", "询问每个平台的精确间隔。", "provide")
+      ], "30m")
     });
   }
 }
@@ -436,17 +501,112 @@ function hasText(value) {
 }
 
 function addQuestion(questions, question) {
-  if (!questions.some((item) => item.id === question.id)) questions.push(question);
+  if (questions.some((item) => item.id === question.id)) return;
+  questions.push(normalizeQuestion(question));
 }
 
 function addConfirmation(confirmations, confirmation) {
   if (!confirmations.some((item) => item.id === confirmation.id)) confirmations.push(confirmation);
 }
 
+async function collectRuntimeReadiness(steps) {
+  const packagePath = path.join(draftFillRoot, "package.json");
+  steps.push(step(
+    "draft_fill_package",
+    (await exists(packagePath)) ? STATUS.done : STATUS.failed,
+    (await exists(packagePath)) ? "draft-fill package metadata found." : `draft-fill package metadata missing: ${packagePath}`
+  ));
+  try {
+    await import("playwright");
+    steps.push(step("playwright", STATUS.done, "Playwright is installed and importable."));
+  } catch (error) {
+    steps.push(step("playwright", STATUS.failed, `Playwright is not ready. Run setup-draft-fill first. ${error.message}`));
+  }
+}
+
+async function ensureProfileReadiness(steps, profileName, platform, options = {}) {
+  const profilePath = profileDir(profileName);
+  const profileExists = await exists(profilePath);
+  if (profileExists) {
+    steps.push(step("browser_profile", STATUS.done, `Browser profile exists: ${profileName}. Login is checked automatically when the platform page opens.`, {
+      profile_name: profileName,
+      platform: platform || null,
+      auto_created: false
+    }));
+    return { exists: true, created: false };
+  }
+  if (options.autoCreate) {
+    await ensureDir(profilePath);
+    steps.push(step("browser_profile", STATUS.needsHuman, `Browser profile was created: ${profileName}. Log in once in the opened profile before real draft filling.`, {
+      profile_name: profileName,
+      platform: platform || null,
+      auto_created: true
+    }));
+    return { exists: false, created: true };
+  }
+  steps.push(step("browser_profile", STATUS.needsHuman, `Browser profile is not initialized: ${profileName}`, {
+    profile_name: profileName,
+    platform: platform || null,
+    auto_created: false
+  }));
+  return { exists: false, created: false };
+}
+
+function profileLoginQuestion(platform, profileName) {
+  return {
+    id: "profile_login",
+    question: `${profileName} 是新 Profile，登录怎么处理？`,
+    why: "The CLI can create and reuse a profile automatically, but the platform login itself must be completed by the operator in the visible browser.",
+    ...choiceSet([
+      choice("打开并登录 (Recommended)", "下一次真实 draft-fill 打开专用 Profile，让操作者登录一次。", "open_login", true),
+      choice("已登录，重试", "如果你已经在别处完成登录，直接重试。", "retry"),
+      choice("换 Profile", "切换到另一个已登录的 Profile。", "change_profile")
+    ], "open_login"),
+    details: {
+      platform: platform || null,
+      profile_name: profileName
+    }
+  };
+}
+
 function isTruthyFlag(value) {
   if (value === true) return true;
   if (value === false || value === undefined || value === null) return false;
   return ["1", "true", "yes", "y"].includes(String(value).trim().toLowerCase());
+}
+
+function choice(label, description, value, recommended = false) {
+  return { label, description, value, recommended };
+}
+
+function choiceSet(options, defaultOption) {
+  return {
+    input_mode: "single_choice",
+    options,
+    default_option: defaultOption
+  };
+}
+
+function normalizeQuestion(question) {
+  const normalized = { ...question };
+  if (Array.isArray(normalized.options) && normalized.options.length > 0) {
+    normalized.input_mode = normalized.input_mode || "single_choice";
+    if (!normalized.default_option) {
+      normalized.default_option = normalized.options.find((item) => item.recommended)?.value || normalized.options[0].value;
+    }
+  } else {
+    normalized.input_mode = normalized.input_mode || "free_text";
+  }
+  return normalized;
+}
+
+function guidedInteraction(questions) {
+  return {
+    style: "guided_intake",
+    max_questions_per_round: 3,
+    render_hint: "Render single_choice questions as clickable options when the client supports it; otherwise ask only the primary_question_ids in one short message.",
+    primary_question_ids: questions.slice(0, 3).map((item) => item.id)
+  };
 }
 
 async function readManifestForIntake(workDir) {
@@ -1155,6 +1315,13 @@ async function draftFill(args) {
     return exit(2, result, args.json);
   }
   const steps = [step("draft_plan", STATUS.done, "draft-plan.json valid.")];
+  await collectRuntimeReadiness(steps);
+  const readiness = args.dryRun ? { exists: false, created: false } : await ensureProfileReadiness(steps, profileName, plan.platform, { autoCreate: true });
+  if (steps.some((item) => item.status === STATUS.failed)) {
+    const result = resultPayload(plan, steps, profileName, false);
+    await writeRunResult(workDir, targetId, result);
+    return exit(2, result, args.json);
+  }
   if (args.dryRun) {
     steps.push(step("dry_run", STATUS.done, "Validated plan and adapter mapping without opening browser."));
     const result = resultPayload(plan, steps, profileName, true);
@@ -1166,6 +1333,7 @@ async function draftFill(args) {
     const questions = [];
     const confirmations = [];
     collectPreflightPrompts(plan, manifest, questions, confirmations);
+    if (readiness.created) addQuestion(questions, profileLoginQuestion(plan.platform, profileName));
     steps.push(step("preflight_intake", STATUS.needsHuman, "Run preflight, answer/confirm the intake questions, then rerun draft-fill with --confirm-intake.", {
       question_ids: questions.map((item) => item.id),
       confirmation_ids: confirmations.map((item) => item.id)
@@ -1173,7 +1341,8 @@ async function draftFill(args) {
     const result = {
       ...resultPayload(plan, steps, profileName, false),
       questions,
-      confirmations
+      confirmations,
+      interaction: guidedInteraction(questions)
     };
     await writeRunResult(workDir, targetId, result);
     return exit(4, result, args.json);

@@ -808,7 +808,7 @@ async function inspectCollectionsCommand(args) {
       targetId,
       keepOpen: false,
       launchOptions: {
-        viewport: { width: 1440, height: 960 }
+        viewport: { width: 1600, height: 1000 }
       }
     });
     const inspection = await inspectCollections({ page: profile.page, plan, logDir, profileName, workDir });
@@ -1364,7 +1364,7 @@ async function draftFill(args) {
       targetId,
       keepOpen: true,
       launchOptions: {
-        viewport: { width: 1440, height: 960 }
+        viewport: { width: 1600, height: 1000 }
       }
     });
     const page = profile.page;
@@ -1390,7 +1390,14 @@ async function draftFill(args) {
     steps.push(...adapterSteps);
   } catch (error) {
     if (error instanceof ProfileLockHeldError) return exit(6, error.payload, args.json);
-    steps.push(step("draft_fill", STATUS.failed, String(error && error.message ? error.message : error)));
+    if (isPersistentProfileSessionOpenError(error)) {
+      steps.push(step("browser_profile", STATUS.needsHuman, `Browser profile appears to be open in another Chrome session: ${profileName}. Close that dedicated profile window and rerun draft-fill.`, {
+        error_code: "profile_browser_session_open",
+        profile_name: profileName
+      }));
+    } else {
+      steps.push(step("draft_fill", STATUS.failed, String(error && error.message ? error.message : error)));
+    }
   }
 
   const result = resultPayload(plan, steps, profileName, false);
@@ -1401,6 +1408,13 @@ async function draftFill(args) {
     await profile.release().catch(() => {});
   }
   return exit(result.overall_status === "failed" ? 5 : result.overall_status === "needs_human" ? 4 : 0, result, args.json);
+}
+
+function isPersistentProfileSessionOpenError(error) {
+  const message = String(error && error.message ? error.message : error);
+  return /launchPersistentContext/i.test(message)
+    && /Target page, context or browser has been closed/i.test(message)
+    && /user-data-dir=.*profiles/i.test(message);
 }
 
 const SAMPLE_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";

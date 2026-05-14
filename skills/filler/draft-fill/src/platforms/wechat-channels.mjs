@@ -41,11 +41,13 @@ async function openWechatChannelsComposer(page, plan) {
 
     await page.goto("https://channels.weixin.qq.com/platform/post/finderNewLifePostList", { waitUntil: "domcontentloaded" });
     const listFrame = await waitForWechatChannelsFrame(page, "finderNewLifePostList", 30000);
-    await waitForWechatChannelsVisibleSelector(listFrame, ".video-btn-wrap, .weui-desktop-btn_wrp, button", 30000);
-    const clicked = await clickWechatFramePrimaryButton(listFrame);
-    if (!clicked) return step("composer", STATUS.needsHuman, "WeChat Channels image publish entry was not found.");
+    await waitForWechatChannelsVisibleSelector(listFrame, ".video-btn-wrap, .weui-desktop-btn_wrp, button, [role='button']", 30000);
+    const entryClick = await clickWechatChannelsImageEntry(listFrame);
+    if (!entryClick.clicked) {
+      return step("composer", STATUS.needsHuman, "WeChat Channels image publish entry was not found or was not clickable.", entryClick.evidence);
+    }
     const createFrame = await waitForWechatChannelsFrame(page, "finderNewLifeCreate", 30000).catch(() => null);
-    if (!createFrame) return step("composer", STATUS.needsHuman, "WeChat Channels image entry was clicked, but the create route did not open.");
+    if (!createFrame) return step("composer", STATUS.needsHuman, "WeChat Channels image entry was clicked, but the create route did not open.", entryClick.evidence);
     const ready = await waitForWechatChannelsImageReady(createFrame, 45000);
     return step("composer", ready ? STATUS.done : STATUS.needsHuman, ready ? "WeChat Channels image composer ready." : "WeChat Channels image composer did not become ready.");
   } catch (error) {
@@ -101,29 +103,78 @@ async function waitForWechatChannelsImageReady(frame, timeoutMs) {
   return false;
 }
 
-async function clickWechatFramePrimaryButton(frame) {
-  const publishImage = frame.locator(".video-btn-wrap, .weui-desktop-btn_wrp")
-    .filter({ hasText: /\u53d1\u8868\u56fe\u6587|\u53d1\u8868\u52a8\u6001/ })
-    .first();
-  if ((await publishImage.count().catch(() => 0)) > 0) {
-    await publishImage.click({ timeout: 5000, force: true }).catch(() => {});
-    await frame.page().waitForTimeout(1000);
-    return true;
+async function clickWechatChannelsImageEntry(frame) {
+  const evidence = await readWechatChannelsImageEntryEvidence(frame);
+  const selectors = [
+    frame.getByRole("button", { name: WECHAT_CHANNELS_IMAGE_ENTRY_RE }).first(),
+    frame.locator("button, [role='button'], .video-btn-wrap, .weui-desktop-btn_primary, .weui-desktop-btn_wrp")
+      .filter({ hasText: WECHAT_CHANNELS_IMAGE_ENTRY_RE })
+      .first()
+  ];
+  for (const candidate of selectors) {
+    if ((await candidate.count().catch(() => 0)) === 0) continue;
+    try {
+      await candidate.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
+      await candidate.click({ timeout: 6000, force: true });
+      await frame.page().waitForTimeout(1200);
+      return { clicked: true, evidence: { ...evidence, strategy: "locator_text_match" } };
+    } catch {
+      // Try the next selector before falling back to a coordinate click.
+    }
   }
-  return frame.evaluate(() => {
-    const nodes = Array.from(document.querySelectorAll("button, .weui-desktop-btn_primary, .weui-desktop-btn_wrp, .video-btn-wrap"));
+
+  const clickedByPoint = await frame.evaluate((source) => {
+    const re = new RegExp(source);
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      const disabled = node.disabled || String(node.className || "").includes("disabled") || node.getAttribute("aria-disabled") === "true";
+      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden" && !disabled;
+    };
+    const node = Array.from(document.querySelectorAll("button, [role='button'], .weui-desktop-btn_primary, .weui-desktop-btn_wrp, .video-btn-wrap"))
+      .find((item) => re.test((item.innerText || item.textContent || "").replace(/\s+/g, "")) && visible(item));
+    if (!node) return null;
+    const rect = node.getBoundingClientRect();
+    return {
+      x: Math.min(Math.max(rect.x + rect.width / 2, 8), window.innerWidth - 8),
+      y: Math.min(Math.max(rect.y + rect.height / 2, 8), window.innerHeight - 8)
+    };
+  }, WECHAT_CHANNELS_IMAGE_ENTRY_RE.source).catch(() => null);
+  if (clickedByPoint) {
+    await frame.page().mouse.click(clickedByPoint.x, clickedByPoint.y);
+    await frame.page().waitForTimeout(1200);
+    return { clicked: true, evidence: { ...evidence, strategy: "coordinate_text_match" } };
+  }
+
+  return { clicked: false, evidence };
+}
+
+const WECHAT_CHANNELS_IMAGE_ENTRY_RE = /\u53d1\u8868\u56fe\u6587|\u53d1\u8868\u52a8\u6001|\u53d1\u5e03\u56fe\u6587|\u65b0\u5efa\u56fe\u6587|\u53d1\u56fe\u6587/;
+
+export function isWechatChannelsImageEntryButton(text) {
+  return WECHAT_CHANNELS_IMAGE_ENTRY_RE.test(String(text || "").replace(/\s+/g, ""));
+}
+
+async function readWechatChannelsImageEntryEvidence(frame) {
+  return frame.evaluate((source) => {
+    const re = new RegExp(source);
+    const nodes = Array.from(document.querySelectorAll("button, [role='button'], .weui-desktop-btn_primary, .weui-desktop-btn_wrp, .video-btn-wrap"));
     const visible = nodes.filter((item) => {
       const rect = item.getBoundingClientRect();
-      const disabled = item.disabled || String(item.className || "").includes("disabled");
-      return rect.width > 0 && rect.height > 0 && !disabled;
+      const style = getComputedStyle(item);
+      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
     });
-    const node = visible.find((item) => /发表图文|发表动态/.test(item.innerText || item.textContent || ""))
-      || null;
-    if (!node) return false;
-    node.scrollIntoView({ block: "center", inline: "center" });
-    node.click();
-    return true;
-  }).catch(() => false);
+    return {
+      visible_button_count: visible.length,
+      matched_entry_count: visible.filter((item) => re.test((item.innerText || item.textContent || "").replace(/\s+/g, ""))).length,
+      primary_like_count: visible.filter((item) => String(item.className || "").includes("weui-desktop-btn_primary")).length
+    };
+  }, WECHAT_CHANNELS_IMAGE_ENTRY_RE.source).catch(() => ({
+    visible_button_count: null,
+    matched_entry_count: null,
+    primary_like_count: null
+  }));
 }
 
 async function uploadWechatChannelsFiles(page, frame, plan) {

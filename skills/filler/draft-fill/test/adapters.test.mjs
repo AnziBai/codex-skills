@@ -14,6 +14,7 @@ import {
   douyinAdapter,
   extractVisibleUploadedImageCount,
   inspectCollections,
+  isWechatChannelsImageEntryButton,
   isWechatChannelsPublishButton,
   normalizeCollectionNames,
   parseWechatChannelsCarouselCount,
@@ -109,6 +110,10 @@ assert.equal(wechatInputs.find((item) => classifyWechatChannelsInput(item) === "
 assert.equal(isWechatChannelsPublishButton({ tag: "BUTTON", text: "\u53d1\u8868" }), true);
 assert.equal(isWechatChannelsPublishButton({ tag: "DIV", text: "\u4fdd\u5b58\u8349\u7a3f \u624b\u673a\u9884\u89c8 \u53d1\u8868" }), false);
 assert.equal(isWechatChannelsPublishButton({ tag: "DIV", className: "weui-desktop-btn_primary", text: "\u53d1\u8868" }), true);
+assert.equal(isWechatChannelsImageEntryButton("\u53d1\u8868\u56fe\u6587"), true);
+assert.equal(isWechatChannelsImageEntryButton("\u53d1\u8868 \u56fe\u6587"), true);
+assert.equal(isWechatChannelsImageEntryButton("\u53d1\u8868"), false);
+assert.equal(isWechatChannelsImageEntryButton("\u4fdd\u5b58\u8349\u7a3f \u53d1\u8868"), false);
 
 assert.deepEqual(
   normalizeCollectionNames(["  量价课程  ", "选择合集", "量价课程", "取消", "宏观复盘", "加载中", "", "Add to collection", "宏观复盘 "]),

@@ -1,32 +1,66 @@
-# Filler
+# AnziBai Skills
 
-Production-oriented social publishing assistant for finished creative works.
+#### 在真实工作流里跑通、能交给同事复用的 Codex Skills
 
-This repository is the canonical Codex skills repo for ongoing skill updates.
-Add future skills under `skills/<skill-name>` and keep each skill independently
-installable, documented, and testable.
+[![Skills](https://img.shields.io/badge/Skills-Codex-black)](https://github.com/AnziBai/codex-skills)
+[![Primary Skill](https://img.shields.io/badge/Primary-filler-2f6fed)](skills/filler/SKILL.md)
+[![Runtime](https://img.shields.io/badge/Runtime-Node.js%20%2B%20PowerShell-1f883d)](skills/filler/draft-fill/package.json)
+[![Automation Boundary](https://img.shields.io/badge/Boundary-human%20final%20publish%20click-f59e0b)](skills/filler/README.md)
 
-`filler` turns a prepared work directory into platform-ready copy,
-browser-fill plans, repeatable draft automation, logs, screenshots, and a clear
-handoff state. It is built as a Codex skill plus CLI so teammates can run the
-same workflow without replaying a long chat history.
+这里收纳的是我自己和团队会反复使用的 AI skills。不是灵感碎片，也不是一次性 prompt 仓库。
 
-The core rule is simple: the CLI may prepare the draft, but a human clicks the
-final public publish button.
+一个 skill 只有满足这几个条件，才值得进来：
 
-## Why This Exists
+- 在真实业务里跑过，不只是 demo。
+- 能被同事从零安装、登录、验证、复现。
+- 有明确边界，知道哪些事情该自动化，哪些事情必须停下来问人。
+- 有文档、脚本、测试和故障诊断路径。
+- 不提交账号、cookie、Chrome profile、截图、DOM dump、临时 workdir 或任何秘密。
 
-Publishing work is not hard because buttons exist. It is hard because every
-platform asks for slightly different decisions:
+设计参考了 [KKKKhazix/khazix-skills](https://github.com/KKKKhazix/khazix-skills) 的仓库门面思路：一句话讲清楚用途，目录能快速扫，安装方式足够短，每个 skill 都说明适合什么、不适合什么、怎么触发。
 
-- a title that earns traffic without lying about the asset
-- platform-native body copy and tags
-- collection/category choice
-- original or content-source declarations
-- music and schedule settings
-- stable recovery when a page changes or upload stalls
+---
 
-This project splits those concerns cleanly:
+## Skills
+
+| Skill | 一句话 | 状态 | 入口 |
+| --- | --- | --- | --- |
+| `filler` | 把已经完成的作品变成平台发布草稿：AI 写标题和文案，CLI 校验素材，Playwright 自动上传并填写小红书、抖音、视频号草稿，最终发布按钮留给人工。 | 生产试运行 | [SKILL.md](skills/filler/SKILL.md) · [同事指南](skills/filler/README.md) |
+
+后续新的 skill 会继续放在 `skills/<skill-name>` 下。每个 skill 都应该可以单独安装、单独阅读、单独测试。
+
+---
+
+## 安装方式
+
+如果你的 Codex 环境能访问这个仓库，直接让 Codex 安装目标 skill：
+
+```text
+帮我安装这个 skill：https://github.com/AnziBai/codex-skills/tree/main/skills/filler
+```
+
+手动方式：
+
+```powershell
+git clone https://github.com/AnziBai/codex-skills.git
+cd codex-skills
+```
+
+然后运行 `filler` 的初始化命令：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" setup-draft-fill -Json
+```
+
+---
+
+## Filler
+
+`filler` 是这个仓库里的第一个生产级 skill。它解决的是一个很具体的问题：
+
+> 作品已经做好了，但发布到小红书、抖音、视频号时，标题、正文、tag、合集、声明、音乐、定时和素材上传都要重复处理。
+
+它不是要让 AI 临场操作网页，而是把工作拆成三层：
 
 ```text
 finished work directory
@@ -35,42 +69,78 @@ finished work directory
 AI copy layer
         |
         v
-draft-plan.json
+deterministic draft plan
         |
         v
 Playwright draft filler
         |
         v
-ready-to-review platform draft
-        |
-        v
 human final publish click
 ```
 
-## Architecture
+### 它会做什么
 
-| Layer | Responsibility | Output |
+- 读取已经完成的作品目录和 `manifest.json`。
+- 生成平台化标题、正文、tag、封面字和候选文案包。
+- 让人选择文案候选，不直接覆盖原始作品。
+- 生成 `draft-plan.json`，把素材路径、文案、平台设置变成确定性执行计划。
+- 使用专用 Chrome profile 复用登录态。
+- 自动上传图片或视频。
+- 自动填写标题、正文、tag token、合集、原创或个人观点声明、音乐和定时设置。
+- 停在最终公开发布按钮前，由人工最后确认。
+- 输出 `draft-fill-result.json`、`logs/<target-id>/run.json` 和截图证据。
+
+### 适合
+
+- 已经完成内容生产，只想把发布准备工作标准化。
+- 小红书、抖音、视频号这类页面字段很多、人工重复填写成本高的场景。
+- 团队里多人发布，但希望流程、命名、日志和安全边界一致。
+- 需要 AI 参与标题、介绍、tag 和平台化表达，但不希望 AI 随机点击网页。
+
+### 不适合
+
+- 想绕过登录、验证码、风控或平台限制。
+- 想让程序直接点击最终发布按钮。
+- 没有整理作品目录、素材顺序和账号 profile 的临时发布。
+- 平台页面刚大改，却不愿意先跑诊断和修 selector。
+
+### 快速使用
+
+创建样例 workdir：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" sample-run -Platform "xiaohongshu" -Json
+```
+
+发布前提问和预检：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" preflight -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -Json
+```
+
+真实填写草稿：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -Json
+```
+
+失败诊断：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" diagnose-failure -WorkDir ".\work" -TargetId "xhs-main-note" -Json
+```
+
+### 平台状态
+
+| 平台 | 状态 | 已覆盖 |
 | --- | --- | --- |
-| AI copy layer | Generate and select titles, body text, tags, cover text, and platform-specific phrasing. | `copy-pack.json`, `selected-copy.json` |
-| Publish kernel | Validate work directories, accounts, assets, status, idempotency, and manual packages. | `publish-result.json`, `manual/*.md` |
-| Draft planner | Convert selected copy and assets into a deterministic browser execution plan. | `draft-plan.json` |
-| Playwright draft filler | Reuse dedicated Chrome profiles, upload assets, fill fields, verify state, and stop before publish. | `draft-fill-result.json`, logs, screenshots |
-| Diagnostics | Explain failed runs from artifacts instead of guessing from memory. | `logs/<target-id>/run.json`, DOM snapshots |
+| 小红书 | 已跑通到发布前人工确认 | 多图上传、中文标题正文、话题 token、合集、原创声明、内容声明、定时或不定时、发布边界验证 |
+| 抖音 | 已跑通到发布前人工确认，继续做健壮性增强 | 多图和视频上传、标题正文、话题 token、合集、个人观点声明、推荐音乐、定时策略、发布边界验证 |
+| 视频号 | 开发中 | 已完成页面探索和 runbook，图文流程正在收口 |
 
-Browser Use and live browser inspection are reserved for exploration and repair.
-They are not the production path for routine publishing.
+---
 
-## Platform Status
-
-As of 2026-05-12:
-
-| Platform | Status | Covered |
-| --- | --- | --- |
-| Xiaohongshu | Stable to final publish boundary | Image upload, Chinese title/body, topic token selection, collection, original declaration, content declaration, optional schedule, publish-boundary verification |
-| Douyin | Stable to final publish boundary | Multi-image upload with visible count verification, title/body, topic token selection, collection, personal-view declaration, first recommended music, schedule handling, publish-boundary verification |
-| WeChat Channels | Pending | First exploratory run stopped at login; logged-in page mapping is next |
-
-## Repository Layout
+## 仓库结构
 
 ```text
 .
@@ -78,103 +148,68 @@ As of 2026-05-12:
 |-- AGENTS.md
 |-- docs/
 |   |-- filler-handoff.md
+|   |-- filler-verification-evidence.md
 |   `-- self-evolution-memory-system.md
 |-- scripts/
-|-- skills/
-|   `-- filler/
-|       |-- SKILL.md
-|       |-- draft-fill/
-|       |-- references/
-|       `-- scripts/
+|   `-- self_evolution_hook.ps1
+`-- skills/
+    `-- filler/
+        |-- SKILL.md
+        |-- agents/
+        |-- draft-fill/
+        |-- references/
+        `-- scripts/
 ```
 
-Local browser state, generated work directories, logs, screenshots, DOM
-snapshots, account configs, and `node_modules` are intentionally ignored.
+`SKILL.md` 是给 Codex 看的入口；`references/` 放长文档和平台 runbook；`scripts/` 放可重复执行的确定性逻辑；`draft-fill/` 是 Playwright 执行层。
 
-## Quick Start
+---
 
-Run the packaged skill from this repository.
+## 开发规则
 
-Install draft-fill dependencies and create dedicated Chrome profiles:
+新增或维护 skill 时，按这个标准收口：
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" setup-draft-fill -Json
-```
+1. `skills/<skill-name>/SKILL.md` 必须短、清楚、可触发。
+2. 复杂说明放进 `references/`，不要把 `SKILL.md` 写成日志。
+3. 能脚本化的流程放进 `scripts/`，不要每次让 Agent 重新发明。
+4. 真实账号、cookie、profile、截图、DOM、临时 workdir 和依赖目录都不能提交。
+5. 跑完一个阶段后看 `.git/self-evolution-pending.md`，先提出记忆更新建议，再修改长期记忆或 skill。
 
-Create a sample work directory:
+---
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" sample-run -Platform "xiaohongshu" -Json
-```
+## 验证
 
-Check unresolved choices before touching a real browser:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" preflight -WorkDir ".\work" -TargetId "xhs-main-note" -Json
-```
-
-Fill a platform draft:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -Json
-```
-
-Diagnose a failed run:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" diagnose-failure -WorkDir ".\work" -TargetId "xhs-main-note" -Json
-```
-
-## Work Directory Contract
-
-```text
-work/
-|-- manifest.json
-|-- assets/
-|-- copy-pack.json
-|-- selected-copy.json
-|-- draft-plan.json
-|-- publish-result.json
-|-- manual/
-`-- logs/
-```
-
-The work directory is the interface between upstream content generation,
-copywriting, browser draft filling, and final human review.
-
-## Production Rules
-
-- Never click the final public publish button in automation.
-- Run `preflight` before real browser automation and ask the user about unclear
-  title, schedule, collection, music, account, or batch-cadence decisions.
-- Keep platform adapters separate. Share only generic utilities such as logging,
-  screenshots, retries, file validation, and status modeling.
-- Add tags through the platform suggestion UI. Plain pasted hashtags are not
-  accepted as valid topic tokens.
-- On failure, inspect `run.json`, screenshots, and DOM snapshots before changing
-  selectors.
-- Do not commit Chrome profiles, cookies, local storage, account configs,
-  screenshots, DOM snapshots, generated work directories, or installed
-  dependencies.
-
-## Validation
-
-Run the test suite:
+`filler` 的基础验证：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\test-filler.ps1"
 ```
 
-Useful targeted checks:
+Node 检查：
 
 ```powershell
-node --check ".\skills\filler\draft-fill\src\cli.mjs"
-node --check ".\skills\filler\draft-fill\src\adapters.mjs"
-node --check ".\skills\filler\draft-fill\src\utils.mjs"
+cd ".\skills\filler\draft-fill"
+npm run check
+npm test
+npm run robustness-matrix
 ```
+
+如果只是文档改动，至少确认 README、`SKILL.md`、同事指南和 handoff 里的路径仍然一致：
+
+```powershell
+rg -n "skills\\filler|skills/filler|filler.ps1|final publish boundary|ConfirmIntake" README.md AGENTS.md docs skills/filler
+```
+
+---
 
 ## Handoff
 
-Read [docs/filler-handoff.md](docs/filler-handoff.md) before
-continuing platform work. It records the latest platform status, validation
-results, and the next steps for WeChat Channels.
+继续开发前先读：
+
+- [filler handoff](docs/filler-handoff.md)
+- [verification evidence](docs/filler-verification-evidence.md)
+- [production readiness](skills/filler/references/production-readiness.md)
+- [failure diagnostics](skills/filler/references/failure-diagnostics.md)
+- [WeChat Channels runbook](skills/filler/references/wechat-channels-real-publish-runbook.md)
+
+当前最重要的下一步：把视频号图文流程收口到和小红书、抖音同级，再继续做三平台批量发布的迁移体验。

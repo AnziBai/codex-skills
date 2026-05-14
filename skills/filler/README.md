@@ -26,6 +26,17 @@ $Publisher = Join-Path (Get-Location) "skills\filler\scripts\filler.ps1"
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher setup-draft-fill -Json
 ```
 
+When updating the local Codex skill registration from this repository, copy
+only tracked skill files with the safe registration script:
+
+```powershell
+& powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\register-local-skill.ps1" -Json
+```
+
+The script installs to `$HOME\.codex\skills\filler` by default, preserves any
+local `profiles/` folder, and refuses to copy or delete platform cookies,
+browser cache, logs, screenshots, DOM dumps, temp outputs, or `node_modules`.
+
 `setup-draft-fill` installs the draft-fill dependencies and creates profile
 folders under `skills/filler/profiles/`. If a teammate needs only one
 profile, pass `-ProfileName`:

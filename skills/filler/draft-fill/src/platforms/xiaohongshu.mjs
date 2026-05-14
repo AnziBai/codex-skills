@@ -363,7 +363,7 @@ export async function inspectXhsCollections(page, plan, logDir) {
   if (identity) return collectionInspectResult([identity], [], sourceArtifacts);
   try {
     await page.goto(platformPublishUrl(plan.platform), { waitUntil: "domcontentloaded" });
-    steps.push(await expectText(page, "page_signature", /上传图片|发布笔记|创作服务平台|涓婁紶鍥剧墖|鍙戝竷绗旇|鍒涗綔鏈嶅姟骞冲彴/));
+    steps.push(await expectText(page, "page_signature", /上传图片|发布笔记|创作服务平台/));
     if (shouldStopEarly(steps)) return collectionInspectResult(steps, [], sourceArtifacts);
     await dismissKnownOverlays(page);
     const opened = await openXhsCollectionDropdown(page);
@@ -387,10 +387,10 @@ export async function inspectXhsCollections(page, plan, logDir) {
 }
 
 async function openXhsCollectionDropdown(page) {
-  const row = page.locator("div").filter({ hasText: /加入合集|添加到合集|选择合集|鍔犲叆鍚堥泦|閫夋嫨鍚堥泦/ }).first();
+  const row = page.locator("div").filter({ hasText: /加入合集|添加到合集|选择合集/ }).first();
   if ((await row.count().catch(() => 0)) === 0) return false;
   await row.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
-  const trigger = row.getByText(/选择合集|加入合集|添加到合集|不加入合集|瀹借|閫夋嫨鍚堥泦|鍔犲叆鍚堥泦/, { exact: false }).last();
+  const trigger = row.getByText(/选择合集|加入合集|添加到合集|不加入合集|宽论/, { exact: false }).last();
   if ((await trigger.count().catch(() => 0)) === 0) return false;
   await trigger.click({ timeout: 5000, force: true });
   await page.waitForTimeout(800);

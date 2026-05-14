@@ -28,7 +28,7 @@ The product boundary stays unchanged: the CLI fills platform drafts and always s
 
 - Node entrypoint: `skills/filler/draft-fill/src/cli.mjs`.
 - PowerShell entrypoint: `skills/filler/scripts/filler.ps1`.
-- Adapter contract today is `adapter.run({ page, plan, logDir, profileName, workDir })`.
+- Adapter contract as of 2026-05-13 is `adapter.run({ page, plan, logDir, profileName, workDir })`.
 - Existing helper is `targetLogDir(workDir, targetId)`, not `getLogDir`.
 - No shared browser helper exists yet; `draft-fill` and `inspect-wechat-channels` each launch Playwright inline.
 - `draft-fill` intentionally leaves the browser open for human review.

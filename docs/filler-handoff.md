@@ -30,6 +30,43 @@ Completed on 2026-05-12:
 
 ## Platform Run Status
 
+## Known Issues For Next Iteration
+
+Tracking issues created from the 2026-05-14 `21-40` batch test:
+
+- [#1 filler: fix profile launch and update scheduled batch publish behavior](https://github.com/AnziBai/codex-skills/issues/1)
+- [#2 filler: choose platform collections from title meaning and user knowledge base](https://github.com/AnziBai/codex-skills/issues/2)
+
+### Login Profile Launch Can Split Operator State
+
+Observed on 2026-05-14 during the `21-40` Xiaohongshu batch intake:
+
+- The skill/default Playwright launch path opened `xhs-main`, but repeated
+  `inspect-collections` attempts still captured the Xiaohongshu SMS login page.
+- A later directly opened local Chrome window using the dedicated profile was
+  the one the operator saw and considered logged in.
+- Hidden or background `Start-Process` launches made this worse because the
+  child browser could be running without an obvious foreground window.
+- The immediate root cause was confirmed later: an unquoted
+  `--user-data-dir` value under the workspace path `New project 5` was parsed
+  by Chrome as a truncated path ending before the first space, so automation and
+  the operator were not consistently using the intended
+  `skills/filler/profiles/<profile>` directory.
+
+Iteration note:
+
+- Add an explicit `login-profile` or `open-profile` command that opens a visible
+  foreground browser for the exact same profile directory used by
+  `draft-fill`, `inspect-collections`, and `preflight`.
+- Launch Chrome/Edge with an argument builder that preserves spaces in
+  `--user-data-dir`, and add a regression check for workspaces whose paths
+  contain spaces.
+- Do not launch human login windows with hidden process settings.
+- After the operator says login is complete, verify login state from the same
+  automation path before continuing to collection inspection or draft filling.
+- Preserve the rule that profile folders, cookies, local storage, screenshots,
+  DOM dumps, and account identifiers stay local and are not committed.
+
 ### Xiaohongshu
 
 Status: stable to the final publish boundary.
@@ -97,13 +134,15 @@ changing selectors.
 
 ## Next Steps
 
-1. Decide whether to delete or preserve the current untracked QA/sample JSON files.
-2. In the logged-in `wechat-channels-main` profile, run `preflight` and then
+1. Fix the login-profile UX issue above so operator login, Playwright
+   automation, and direct Chrome fallback all use one verified profile state.
+2. Decide whether to delete or preserve the current untracked QA/sample JSON files.
+3. In the logged-in `wechat-channels-main` profile, run `preflight` and then
    `inspect-collections` with an explicit `account_fingerprint` in the plan if
    collection selection should be automatic.
-3. Run one immediate and one scheduled WeChat Channels image draft-fill and
+4. Run one immediate and one scheduled WeChat Channels image draft-fill and
    verify the collection step, music step, schedule readback, and publish
    boundary.
-4. Add the sanitized evidence to `docs/filler-verification-evidence.md`.
-5. Only after image flow is stable, test WeChat Channels video upload as a
+5. Add the sanitized evidence to `docs/filler-verification-evidence.md`.
+6. Only after image flow is stable, test WeChat Channels video upload as a
    separate surface.

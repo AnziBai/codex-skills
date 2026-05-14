@@ -228,7 +228,7 @@ export async function inspectDouyinCollections(page, plan, logDir) {
   if (identity) return collectionInspectResult([identity], [], sourceArtifacts);
   try {
     await page.goto(platformPublishUrl(plan.platform), { waitUntil: "domcontentloaded" });
-    steps.push(await expectText(page, "page_signature", /作品描述|发布设置|上传|浣滃搧鎻忚堪|鍙戝竷璁剧疆|涓婁紶/));
+    steps.push(await expectText(page, "page_signature", /作品描述|发布设置|上传/));
     if (shouldStopEarly(steps)) return collectionInspectResult(steps, [], sourceArtifacts);
     await dismissKnownOverlays(page);
     steps.push(await ensureDouyinComposer(page));
@@ -253,7 +253,7 @@ export async function inspectDouyinCollections(page, plan, logDir) {
 }
 
 async function openDouyinCollectionDropdown(page) {
-  const opener = page.getByText(/不选择合集|添加合集|选择合集|加入合集|涓嶉€夋嫨鍚堥泦|娣诲姞鍚堥泦/, { exact: false }).first();
+  const opener = page.getByText(/不选择合集|添加合集|选择合集|加入合集/, { exact: false }).first();
   if ((await opener.count().catch(() => 0)) === 0) return false;
   await opener.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
   await opener.click({ timeout: 5000, force: true });

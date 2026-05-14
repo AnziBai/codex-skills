@@ -72,6 +72,13 @@ Resolve the CLI entry before running commands. Prefer the repository copy when
 the current workspace is the skills repo; otherwise fall back to the locally
 registered skill under `$HOME\.codex\skills\filler`.
 
+When working inside the canonical skills repository and updating this skill,
+refresh the local registration with:
+
+```powershell
+& powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\register-local-skill.ps1" -Json
+```
+
 ```powershell
 $RepoPublisher = Join-Path (Get-Location) "skills\filler\scripts\filler.ps1"
 $LocalPublisher = Join-Path $HOME ".codex\skills\filler\scripts\filler.ps1"

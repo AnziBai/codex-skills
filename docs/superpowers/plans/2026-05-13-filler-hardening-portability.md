@@ -1,4 +1,4 @@
-# Social Publisher Subagent-Driven Hardening And Portability Plan
+# Filler Subagent-Driven Hardening And Portability Plan
 
 > Required implementation mode: use `superpowers:subagent-driven-development`.
 > Execute task-by-task. Each implementation task gets a fresh implementer, then a spec reviewer and a code-quality reviewer. Do not run real platform browser flows in parallel on the same Chrome profile.
@@ -26,8 +26,8 @@ The product boundary stays unchanged: the CLI fills platform drafts and always s
 
 ## Current Implementation Facts
 
-- Node entrypoint: `skills/social-publisher/draft-fill/src/cli.mjs`.
-- PowerShell entrypoint: `skills/social-publisher/scripts/social-publisher.ps1`.
+- Node entrypoint: `skills/filler/draft-fill/src/cli.mjs`.
+- PowerShell entrypoint: `skills/filler/scripts/filler.ps1`.
 - Adapter contract today is `adapter.run({ page, plan, logDir, profileName, workDir })`.
 - Existing helper is `targetLogDir(workDir, targetId)`, not `getLogDir`.
 - No shared browser helper exists yet; `draft-fill` and `inspect-wechat-channels` each launch Playwright inline.
@@ -47,7 +47,7 @@ Goal: make the claimed production status match actual artifacts before we build 
 
 Files:
 
-- Create or update `docs/social-publisher-verification-evidence.md`.
+- Create or update `docs/filler-verification-evidence.md`.
 - Update only status labels in runbooks if evidence contradicts them.
 
 Steps:
@@ -91,11 +91,11 @@ Goal: give teammates a stable command to inspect results without PowerShell 5 en
 
 Files:
 
-- Create `skills/social-publisher/draft-fill/src/result-summary.mjs`.
-- Modify `skills/social-publisher/draft-fill/src/cli.mjs`.
-- Modify `skills/social-publisher/scripts/social-publisher.ps1`.
-- Create `skills/social-publisher/draft-fill/test/result-summary.test.mjs`.
-- Modify `skills/social-publisher/draft-fill/package.json`.
+- Create `skills/filler/draft-fill/src/result-summary.mjs`.
+- Modify `skills/filler/draft-fill/src/cli.mjs`.
+- Modify `skills/filler/scripts/filler.ps1`.
+- Create `skills/filler/draft-fill/test/result-summary.test.mjs`.
+- Modify `skills/filler/draft-fill/package.json`.
 
 Implementation notes:
 
@@ -133,11 +133,11 @@ Goal: make robustness checks reproducible on a teammate machine, not tied to one
 
 Files:
 
-- Create `skills/social-publisher/draft-fill/src/robustness-matrix.mjs`.
-- Create `skills/social-publisher/draft-fill/test/robustness-matrix.test.mjs`.
-- Modify `skills/social-publisher/draft-fill/src/cli.mjs`.
-- Modify `skills/social-publisher/draft-fill/package.json`.
-- Modify `skills/social-publisher/scripts/social-publisher.ps1`.
+- Create `skills/filler/draft-fill/src/robustness-matrix.mjs`.
+- Create `skills/filler/draft-fill/test/robustness-matrix.test.mjs`.
+- Modify `skills/filler/draft-fill/src/cli.mjs`.
+- Modify `skills/filler/draft-fill/package.json`.
+- Modify `skills/filler/scripts/filler.ps1`.
 
 Implementation notes:
 
@@ -161,7 +161,7 @@ Tests:
 Acceptance:
 
 - `npm run check:all` passes.
-- `social-publisher robustness-matrix -Json` works on a clean machine after setup.
+- `filler robustness-matrix -Json` works on a clean machine after setup.
 - Clean-machine dry checks cover Node/npm availability, Playwright dependency presence, PowerShell command discovery, and execution from a cwd outside the repo.
 - `package.json` defines `check:all` by the end of this task. It runs syntax checks, unit tests, and the dry robustness matrix.
 
@@ -171,8 +171,8 @@ Goal: make real browser runs predictable and prevent two CLI processes from figh
 
 Files:
 
-- Create `skills/social-publisher/draft-fill/src/browser-profile.mjs`.
-- Modify `skills/social-publisher/draft-fill/src/cli.mjs`.
+- Create `skills/filler/draft-fill/src/browser-profile.mjs`.
+- Modify `skills/filler/draft-fill/src/cli.mjs`.
 - Create or update tests where practical without launching a browser.
 
 Implementation notes:
@@ -213,10 +213,10 @@ Goal: stop guessing collections during publish runs. Discover broad existing opt
 
 Files:
 
-- Modify `skills/social-publisher/draft-fill/src/adapters.mjs`.
-- Modify `skills/social-publisher/draft-fill/src/cli.mjs`.
-- Modify `skills/social-publisher/scripts/social-publisher.ps1`.
-- Modify `skills/social-publisher/draft-fill/test/adapters.test.mjs`.
+- Modify `skills/filler/draft-fill/src/adapters.mjs`.
+- Modify `skills/filler/draft-fill/src/cli.mjs`.
+- Modify `skills/filler/scripts/filler.ps1`.
+- Modify `skills/filler/draft-fill/test/adapters.test.mjs`.
 
 Implementation notes:
 
@@ -263,11 +263,11 @@ Goal: reduce cross-platform mixing without changing behavior.
 
 Files:
 
-- Create `skills/social-publisher/draft-fill/src/platforms/common.mjs`.
-- Create `skills/social-publisher/draft-fill/src/platforms/xiaohongshu.mjs`.
-- Create `skills/social-publisher/draft-fill/src/platforms/douyin.mjs`.
-- Create `skills/social-publisher/draft-fill/src/platforms/wechat-channels.mjs`.
-- Modify `skills/social-publisher/draft-fill/src/adapters.mjs`.
+- Create `skills/filler/draft-fill/src/platforms/common.mjs`.
+- Create `skills/filler/draft-fill/src/platforms/xiaohongshu.mjs`.
+- Create `skills/filler/draft-fill/src/platforms/douyin.mjs`.
+- Create `skills/filler/draft-fill/src/platforms/wechat-channels.mjs`.
+- Modify `skills/filler/draft-fill/src/adapters.mjs`.
 - Update tests.
 
 Implementation notes:
@@ -289,10 +289,10 @@ Goal: make the skill reproducible for a coworker who did not sit through our deb
 
 Files:
 
-- Update `skills/social-publisher/SKILL.md`.
-- Update or create `skills/social-publisher/README.md`.
-- Update `skills/social-publisher/references/production-readiness.md`.
-- Update `skills/social-publisher/references/failure-diagnostics.md`.
+- Update `skills/filler/SKILL.md`.
+- Update or create `skills/filler/README.md`.
+- Update `skills/filler/references/production-readiness.md`.
+- Update `skills/filler/references/failure-diagnostics.md`.
 - Update WeChat Channels runbook.
 
 Docs must cover:
@@ -370,7 +370,7 @@ Use this pattern per task:
 4. Code-quality reviewer checks maintainability, race conditions, and migration risks.
 5. Main orchestrator integrates, runs checks, and updates the task status.
 
-Do not run two implementers against `cli.mjs`, `adapters.mjs`, or `social-publisher.ps1` at the same time.
+Do not run two implementers against `cli.mjs`, `adapters.mjs`, or `filler.ps1` at the same time.
 
 ## Test Strategy
 
@@ -379,8 +379,8 @@ Dry checks:
 - `node --check` for changed Node files.
 - `npm test`.
 - `npm run check:all`.
-- `social-publisher robustness-matrix -Json` without `-WorkDir`.
-- `social-publisher result-summary -WorkDir <known-output> -Json`.
+- `filler robustness-matrix -Json` without `-WorkDir`.
+- `filler result-summary -WorkDir <known-output> -Json`.
 
 Real checks:
 

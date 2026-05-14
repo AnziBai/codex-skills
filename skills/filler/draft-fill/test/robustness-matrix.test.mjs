@@ -61,8 +61,8 @@ try {
 const firstDefault = await runRobustnessMatrix();
 const secondDefault = await runRobustnessMatrix();
 assert.notEqual(firstDefault.output_root, secondDefault.output_root);
-assert.ok(firstDefault.output_root.includes("social-publisher-robustness-matrix-"));
-assert.ok(secondDefault.output_root.includes("social-publisher-robustness-matrix-"));
+assert.ok(firstDefault.output_root.includes("filler-robustness-matrix-"));
+assert.ok(secondDefault.output_root.includes("filler-robustness-matrix-"));
 
 const sourceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "draft-fill-robustness-source-"));
 const sourceOutputRoot = await fs.mkdtemp(path.join(os.tmpdir(), "draft-fill-robustness-source-output-"));

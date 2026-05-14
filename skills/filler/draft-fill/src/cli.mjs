@@ -440,7 +440,7 @@ async function sampleRun(args) {
   if (!["xiaohongshu", "douyin", "wechat_channels"].includes(platform)) {
     return exit(2, { ok: false, error: `Unsupported sample platform: ${platform}` }, args.json);
   }
-  const root = path.resolve(args.workDir || path.join(os.tmpdir(), "social-publisher-sample", platform));
+  const root = path.resolve(args.workDir || path.join(os.tmpdir(), "filler-sample", platform));
   await ensureDir(path.join(root, "assets"));
   const imagePath = path.join(root, "assets", "1.png");
   await fs.writeFile(imagePath, Buffer.from(SAMPLE_PNG_BASE64, "base64"));
@@ -459,8 +459,8 @@ async function sampleRun(args) {
     dry_run_valid: errors.length === 0,
     errors,
     next_steps: [
-      `Run preflight: social-publisher preflight -WorkDir "${root}" -TargetId "${targetId}" -Json`,
-      `Run dry draft-fill: social-publisher draft-fill -WorkDir "${root}" -TargetId "${targetId}" -DryRun -Json`,
+      `Run preflight: filler preflight -WorkDir "${root}" -TargetId "${targetId}" -Json`,
+      `Run dry draft-fill: filler draft-fill -WorkDir "${root}" -TargetId "${targetId}" -DryRun -Json`,
       "For real browser testing, log into the platform profile first and omit -DryRun."
     ]
   };
@@ -474,7 +474,7 @@ function sampleManifest(platform, targetId) {
     status: "finished",
     content_format: "markdown",
     title: "样例作品标题",
-    body: "这是用于验证 social-publisher 环境的样例正文。不会自动点击最终发布按钮。",
+    body: "这是用于验证 filler 环境的样例正文。不会自动点击最终发布按钮。",
     summary: "环境验证样例",
     audience: "内部测试同事",
     selling_points: ["验证上传", "验证字段填写", "验证发布边界"],
@@ -889,7 +889,7 @@ async function setWechatFrameInputFiles(page, files) {
   const session = await page.context().newCDPSession(page);
   const result = await session.send("Runtime.evaluate", {
     expression: "document.querySelector('iframe[name=\"content\"]')?.contentDocument?.querySelector('input[type=\"file\"]')",
-    objectGroup: "social-publisher-inspect"
+    objectGroup: "filler-inspect"
   });
   if (!result?.result?.objectId) throw new Error("WeChat Channels file input not found in content frame.");
   await session.send("DOM.setFileInputFiles", { objectId: result.result.objectId, files });

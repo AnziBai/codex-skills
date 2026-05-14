@@ -1,7 +1,7 @@
 # Self-Evolution Memory System
 
 This repository uses a bounded memory system so future agents get better at
-social-publisher work without turning every session into permanent context.
+filler work without turning every session into permanent context.
 
 ## Default Policy
 
@@ -20,7 +20,7 @@ social-publisher work without turning every session into permanent context.
 
 ## Installing Hooks In Another Project
 
-Run this from the social-publisher workspace:
+Run this from the filler workspace:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_self_evolution_hooks.ps1 -TargetRepo "C:\path\to\new-project" -InstallPolicy
@@ -88,7 +88,7 @@ references.
 - Action: keep candidate | update existing skill | create new skill
 ```
 
-## Social Publisher Pilot Rules
+## Filler Pilot Rules
 
 - Final publish boundary: browser automation may prepare a draft but must not
   click the final public publish button.

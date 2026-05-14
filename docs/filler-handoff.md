@@ -1,17 +1,17 @@
-# Social Publisher Handoff
+# Filler Handoff
 
 Last updated: 2026-05-12.
 
 ## Branch And Commit
 
 - Repository: this workspace root.
-- Branch: `codex/social-publisher-production-cli`
+- Branch: `codex/filler-production-cli`
 - Latest local commit: `6e2ec29 feat: package social publisher skill`
 - Push status: blocked because no `origin` remote is configured and GitHub CLI is not available.
 
 ## Completed Work
 
-- Packaged the `social-publisher` skill under `skills/social-publisher/`.
+- Packaged the `filler` skill under `skills/filler/`.
 - Added the production CLI path: AI copy, `draft-plan`, `preflight`, Playwright `draft-fill`, and `diagnose-failure`.
 - Added distribution guardrails through `.gitignore` so profiles, local sessions, generated logs, and secrets are not committed.
 - Added runbooks and references for Xiaohongshu, Douyin, production readiness, and failure diagnostics.
@@ -25,7 +25,7 @@ Completed on 2026-05-12:
 - `preflight` passed for the Douyin test work directory.
 - `diagnose-failure` returned clean status for the current Douyin run.
 - On 2026-05-13, Douyin upload validation was tightened so the run log must prove visible page state such as `已添加5张图片`.
-- `test-social-publisher.ps1` passed for the packaged repository copy.
+- `test-filler.ps1` passed for the packaged repository copy.
 - Skill validation passed when run with UTF-8 enabled and the bundled Python 3.12.10.
 
 ## Platform Run Status
@@ -80,10 +80,10 @@ Existing test work:
 Suggested next command after logging into the dedicated profile:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\social-publisher\scripts\social-publisher.ps1" draft-fill -WorkDir ".\wechat-channels-test-work" -TargetId "wechat-channels-main-image" -ProfileName "wechat-channels-main" -ConfirmIntake -Json
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" draft-fill -WorkDir ".\wechat-channels-test-work" -TargetId "wechat-channels-main-image" -ProfileName "wechat-channels-main" -ConfirmIntake -Json
 ```
 
-Read `skills/social-publisher/references/wechat-channels-real-publish-runbook.md` before implementing selectors.
+Read `skills/filler/references/wechat-channels-real-publish-runbook.md` before implementing selectors.
 
 ## Engineering Rules To Preserve
 
@@ -95,7 +95,7 @@ Read `skills/social-publisher/references/wechat-channels-real-publish-runbook.md
 
 ## Next Steps
 
-1. Configure a GitHub remote or working GitHub connector, then push `codex/social-publisher-production-cli`.
+1. Configure a GitHub remote or working GitHub connector, then push `codex/filler-production-cli`.
 2. Decide whether to delete or preserve the current untracked QA/sample JSON files.
 3. Log into WeChat Channels in the `wechat-channels-main` profile.
 4. Run the WeChat Channels draft fill command and collect page structure, screenshots, and failure artifacts.

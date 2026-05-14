@@ -40,7 +40,7 @@ $SupportedStatuses = @(
 $CapabilityRegistry = @{
   mock = @{
     mode = "mock"
-    evidence_url = "local://social-publisher/mock"
+    evidence_url = "local://filler/mock"
     verified_at = "2026-05-11"
     capabilities = @("dry_run_publish")
   }
@@ -959,7 +959,7 @@ function New-ManualPackage {
     $(foreach ($image in @($Manifest.assets.images)) { "- $image" }),
     "",
     "After publishing, run:",
-    "social-publisher record-manual-result -WorkDir `"<workdir>`" -TargetId `"$($Target.target_id)`" -Url `"<published-url>`" -RemoteId `"<remote-id>`" -Json"
+    "filler record-manual-result -WorkDir `"<workdir>`" -TargetId `"$($Target.target_id)`" -Url `"<published-url>`" -RemoteId `"<remote-id>`" -Json"
   )
   ($lines -join [Environment]::NewLine) | Set-Content -LiteralPath $path -Encoding UTF8
   return ("manual/" + [System.IO.Path]::GetFileName($path))

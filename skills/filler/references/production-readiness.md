@@ -1,6 +1,6 @@
 # Production Readiness
 
-Use this reference when packaging `social-publisher` for teammates, preparing a
+Use this reference when packaging `filler` for teammates, preparing a
 real batch, or deciding whether a platform adapter is ready for production use.
 
 ## Migration Checklist
@@ -40,7 +40,7 @@ terminal output if it shows mojibake; inspect the UTF-8 file directly.
 From the repository root:
 
 ```powershell
-$Publisher = Join-Path (Get-Location) "skills\social-publisher\scripts\social-publisher.ps1"
+$Publisher = Join-Path (Get-Location) "skills\filler\scripts\filler.ps1"
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher setup-draft-fill -Json
 ```
 

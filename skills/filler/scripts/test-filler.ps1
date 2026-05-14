@@ -1,5 +1,5 @@
-param(
-  [string]$PublisherScript = (Join-Path $PSScriptRoot "social-publisher.ps1")
+﻿param(
+  [string]$PublisherScript = (Join-Path $PSScriptRoot "filler.ps1")
 )
 
 $ErrorActionPreference = "Stop"
@@ -195,7 +195,7 @@ function New-DraftScenarioWork {
   })
 }
 
-$root = Join-Path ([System.IO.Path]::GetTempPath()) ("social-publisher-test-" + [guid]::NewGuid().ToString("N"))
+$root = Join-Path ([System.IO.Path]::GetTempPath()) ("filler-test-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $root | Out-Null
 try {
   $accounts = Join-Path $root "accounts.json"
@@ -485,7 +485,7 @@ try {
   $browserProfileText = Get-Content -LiteralPath $browserProfileHelper -Raw -Encoding UTF8
   Assert-True ($browserProfileText -match "launchPersistentContext") "draft-fill should use persistent Chrome profiles"
 
-  "All social-publisher tests passed."
+  "All filler tests passed."
 } finally {
   Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
 }

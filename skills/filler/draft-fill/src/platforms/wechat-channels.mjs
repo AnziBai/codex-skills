@@ -133,7 +133,7 @@ async function uploadWechatChannelsFiles(page, frame, plan) {
     const session = await page.context().newCDPSession(page);
     const result = await session.send("Runtime.evaluate", {
       expression: "document.querySelector('iframe[name=\"content\"]')?.contentDocument?.querySelector('input[type=\"file\"]')",
-      objectGroup: "social-publisher-wechat-channels"
+      objectGroup: "filler-wechat-channels"
     });
     if (!result?.result?.objectId) return step("upload_assets", STATUS.needsHuman, "WeChat Channels file input not found in content iframe.");
     await session.send("DOM.setFileInputFiles", { objectId: result.result.objectId, files });

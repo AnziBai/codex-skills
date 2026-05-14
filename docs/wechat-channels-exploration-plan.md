@@ -67,7 +67,7 @@ out/wechat-channels-inspect/<timestamp>/<surface>/
 Add a separate inspector command or script, not a production adapter change:
 
 ```powershell
-social-publisher inspect-wechat-channels -WorkDir ".\work" -TargetId "wechat-channels-main-image" -ProfileName "wechat-channels-main" -Json
+filler inspect-wechat-channels -WorkDir ".\work" -TargetId "wechat-channels-main-image" -ProfileName "wechat-channels-main" -Json
 ```
 
 Responsibilities:
@@ -84,7 +84,7 @@ Responsibilities:
 
 ### Phase 2: Page Map
 
-Create `skills/social-publisher/references/wechat-channels-page-map.json`.
+Create `skills/filler/references/wechat-channels-page-map.json`.
 
 The map should describe:
 

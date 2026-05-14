@@ -17,7 +17,7 @@ export class RobustnessMatrixInputError extends Error {
 export async function runRobustnessMatrix(args = {}) {
   const outputRoot = args.outputRoot
     ? path.resolve(args.outputRoot)
-    : await fs.mkdtemp(path.join(os.tmpdir(), "social-publisher-robustness-matrix-"));
+    : await fs.mkdtemp(path.join(os.tmpdir(), "filler-robustness-matrix-"));
   await ensureDir(outputRoot);
   const sourceRoot = normalizeSourceRoot(args);
   const fixtureRoot = sourceRoot || path.join(outputRoot, "fixture");

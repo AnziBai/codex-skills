@@ -1,6 +1,6 @@
-# Social Publisher Teammate Guide
+# Filler Teammate Guide
 
-This guide is for a coworker taking over `social-publisher` without reading the
+This guide is for a coworker taking over `filler` without reading the
 implementation first. The tool prepares platform copy, builds draft plans,
 opens dedicated Chrome profiles, fills platform drafts, records evidence, and
 stops before the final public publish action.
@@ -20,12 +20,12 @@ stops before the final public publish action.
 From the repository root:
 
 ```powershell
-$Publisher = Join-Path (Get-Location) "skills\social-publisher\scripts\social-publisher.ps1"
+$Publisher = Join-Path (Get-Location) "skills\filler\scripts\filler.ps1"
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher setup-draft-fill -Json
 ```
 
 `setup-draft-fill` installs the draft-fill dependencies and creates profile
-folders under `skills/social-publisher/profiles/`. If a teammate needs only one
+folders under `skills/filler/profiles/`. If a teammate needs only one
 profile, pass `-ProfileName`:
 
 ```powershell
@@ -52,7 +52,7 @@ If a run exits with `profile_lock_held` or exit code `6`, another process or
 kept-open browser is using that profile. Close the visible browser first. If the
 payload says `stale_keep_open_requires_manual_cleanup`, verify no Chrome window
 is using that profile, then remove only the matching lock file under
-`skills/social-publisher/profiles/<profile>.draft-fill.lock`. Do not delete the
+`skills/filler/profiles/<profile>.draft-fill.lock`. Do not delete the
 profile folder unless you intentionally want to log in again.
 
 ## Real-Run Intake Checklist

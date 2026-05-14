@@ -42,7 +42,7 @@ Ask or confirm:
 Initialize and log into the profile:
 
 ```powershell
-$Publisher = "C:\Users\Administrator\Documents\New project 5\skills\social-publisher\scripts\social-publisher.ps1"
+$Publisher = "C:\Users\Administrator\Documents\New project 5\skills\filler\scripts\filler.ps1"
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher setup-draft-fill -ProfileName "wechat-channels-main" -Json
 ```
 

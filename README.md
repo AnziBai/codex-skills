@@ -1,8 +1,12 @@
-# Social Publisher
+# Filler
 
 Production-oriented social publishing assistant for finished creative works.
 
-`social-publisher` turns a prepared work directory into platform-ready copy,
+This repository is the canonical Codex skills repo for ongoing skill updates.
+Add future skills under `skills/<skill-name>` and keep each skill independently
+installable, documented, and testable.
+
+`filler` turns a prepared work directory into platform-ready copy,
 browser-fill plans, repeatable draft automation, logs, screenshots, and a clear
 handoff state. It is built as a Codex skill plus CLI so teammates can run the
 same workflow without replaying a long chat history.
@@ -73,11 +77,11 @@ As of 2026-05-12:
 |-- README.md
 |-- AGENTS.md
 |-- docs/
-|   |-- social-publisher-handoff.md
+|   |-- filler-handoff.md
 |   `-- self-evolution-memory-system.md
 |-- scripts/
 |-- skills/
-|   `-- social-publisher/
+|   `-- filler/
 |       |-- SKILL.md
 |       |-- draft-fill/
 |       |-- references/
@@ -94,31 +98,31 @@ Run the packaged skill from this repository.
 Install draft-fill dependencies and create dedicated Chrome profiles:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\social-publisher\scripts\social-publisher.ps1" setup-draft-fill -Json
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" setup-draft-fill -Json
 ```
 
 Create a sample work directory:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\social-publisher\scripts\social-publisher.ps1" sample-run -Platform "xiaohongshu" -Json
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" sample-run -Platform "xiaohongshu" -Json
 ```
 
 Check unresolved choices before touching a real browser:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\social-publisher\scripts\social-publisher.ps1" preflight -WorkDir ".\work" -TargetId "xhs-main-note" -Json
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" preflight -WorkDir ".\work" -TargetId "xhs-main-note" -Json
 ```
 
 Fill a platform draft:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\social-publisher\scripts\social-publisher.ps1" draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -Json
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -Json
 ```
 
 Diagnose a failed run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\social-publisher\scripts\social-publisher.ps1" diagnose-failure -WorkDir ".\work" -TargetId "xhs-main-note" -Json
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" diagnose-failure -WorkDir ".\work" -TargetId "xhs-main-note" -Json
 ```
 
 ## Work Directory Contract
@@ -158,19 +162,19 @@ copywriting, browser draft filling, and final human review.
 Run the test suite:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\social-publisher\scripts\test-social-publisher.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\test-filler.ps1"
 ```
 
 Useful targeted checks:
 
 ```powershell
-node --check ".\skills\social-publisher\draft-fill\src\cli.mjs"
-node --check ".\skills\social-publisher\draft-fill\src\adapters.mjs"
-node --check ".\skills\social-publisher\draft-fill\src\utils.mjs"
+node --check ".\skills\filler\draft-fill\src\cli.mjs"
+node --check ".\skills\filler\draft-fill\src\adapters.mjs"
+node --check ".\skills\filler\draft-fill\src\utils.mjs"
 ```
 
 ## Handoff
 
-Read [docs/social-publisher-handoff.md](docs/social-publisher-handoff.md) before
+Read [docs/filler-handoff.md](docs/filler-handoff.md) before
 continuing platform work. It records the latest platform status, validation
 results, and the next steps for WeChat Channels.

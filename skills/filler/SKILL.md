@@ -1,9 +1,9 @@
 ---
-name: social-publisher
+name: filler
 description: Use when preparing, validating, filling, diagnosing, retrying, or handing off completed social content for Xiaohongshu, Douyin, WeChat Channels, WeChat Official Account, WeChat sticker posts, or dry-run publishing.
 ---
 
-# Social Publisher
+# Filler
 
 Use this skill for finished social works that need platform copy, draft plans,
 browser draft filling, result summaries, diagnostics, or teammate handoff.
@@ -50,7 +50,7 @@ account-specific until verified for the logged-in profile.
 From the repository root:
 
 ```powershell
-$Publisher = Join-Path (Get-Location) "skills\social-publisher\scripts\social-publisher.ps1"
+$Publisher = Join-Path (Get-Location) "skills\filler\scripts\filler.ps1"
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher setup-draft-fill -Json
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher copy-generate -WorkDir ".\work" -Json
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher copy-select -WorkDir ".\work" -TargetId "xhs-main-note" -CandidateId "xhs-main-note-2" -Json
@@ -90,5 +90,5 @@ required handoff terms and Markdown/link sanity. Run the full test script only
 when code behavior changed or the user asks for it:
 
 ```powershell
-rg -n "needs_human|final publish boundary|inspect-collections|robustness-matrix" skills/social-publisher
+rg -n "needs_human|final publish boundary|inspect-collections|robustness-matrix" skills/filler
 ```

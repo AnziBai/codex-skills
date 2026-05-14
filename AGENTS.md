@@ -1,4 +1,8 @@
-﻿# Agent Memory
+# Agent Memory
+
+This repository is the user's canonical Codex skills repository. Keep skills
+under `skills/<skill-name>` and prefer making each skill portable,
+self-contained, and independently testable.
 
 This project uses hook-assisted self-evolution reminders.
 

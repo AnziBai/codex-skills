@@ -10,7 +10,7 @@ if (!(Test-Path -LiteralPath (Join-Path $ExtensionPath "manifest.json"))) {
 }
 
 $resolved = (Resolve-Path -LiteralPath $ExtensionPath).Path
-Write-Output "Social Publisher Draft Assistant extension path:"
+Write-Output "Filler Draft Assistant extension path:"
 Write-Output $resolved
 Write-Output ""
 Write-Output "Install steps:"

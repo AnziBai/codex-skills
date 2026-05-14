@@ -271,8 +271,9 @@ try {
   $xhsPreflight = Invoke-Publisher -PublisherArgs @("preflight", "-WorkDir", $xhsThreeImageWork, "-TargetId", "xhs-three-image", "-ProfileName", "xhs-test", "-Json")
   Assert-True ($xhsPreflight.Code -eq 4) "xhs preflight with unresolved collection inspection should exit 4"
   $xhsPreflightJson = $xhsPreflight.Stdout | ConvertFrom-Json
-  Assert-True (@($xhsPreflightJson.questions).Count -eq 1) "xhs preflight should ask for collection inspection when no trusted cache exists"
-  Assert-True ($xhsPreflightJson.questions[0].id -eq "inspect_collections") "xhs preflight should request inspect-collections before real draft fill"
+  $xhsQuestionIds = @($xhsPreflightJson.questions | ForEach-Object { $_.id })
+  Assert-True ($xhsQuestionIds -contains "inspect_collections") "xhs preflight should request inspect-collections before real draft fill"
+  Assert-True ($xhsQuestionIds -contains "account_fingerprint") "xhs preflight should ask for account fingerprint before trusting collection cache"
   $xhsConfirmationIds = @($xhsPreflightJson.confirmations | ForEach-Object { $_.id })
   Assert-True ($xhsConfirmationIds -contains "target_platforms") "preflight should confirm target platforms before real work"
   Assert-True ($xhsConfirmationIds -contains "asset_location_order") "preflight should confirm asset location and upload order before real work"
@@ -297,6 +298,9 @@ try {
   New-DraftScenarioWork $wechatDryWork "wechat-dry-work" "wechat_channels" "image" "wechat-dry" "wechat_channels_main" @("assets\1.jpg") ""
   $wechatDryPlan = Invoke-Publisher -PublisherArgs @("draft-plan", "-WorkDir", $wechatDryWork, "-TargetId", "wechat-dry", "-Json")
   Assert-True ($wechatDryPlan.Code -eq 0) "wechat dry draft-plan should exit 0"
+  $wechatDryPlanJson = $wechatDryPlan.Stdout | ConvertFrom-Json
+  Assert-True ($wechatDryPlanJson.collection -eq (Utf8 "5a696K66")) "wechat channels collection should be inferred from broad product knowledge"
+  Assert-True ($wechatDryPlanJson.music.strategy -eq "first_recommended") "wechat channels should default to first recommended music"
   $wechatInspectInvalidSurface = Invoke-Publisher -PublisherArgs @("inspect-wechat-channels", "-WorkDir", $wechatDryWork, "-TargetId", "wechat-dry", "-ProfileName", "wechat-test", "-Surface", "unknown-surface", "-DryRun", "-Json")
   Assert-True ($wechatInspectInvalidSurface.Code -eq 2) "inspect-wechat-channels should reject invalid surface before browser work"
   $wechatInspectInvalidSurfaceJson = $wechatInspectInvalidSurface.Stdout | ConvertFrom-Json

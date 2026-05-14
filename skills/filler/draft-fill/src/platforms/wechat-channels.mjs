@@ -1,6 +1,6 @@
 import { STATUS, getUploadAssets, saveArtifacts, step } from "../utils.mjs";
 
-import { collectionInspectResult, formatPlatformDateTime, normalizeCollectionNames, normalizeXhsTag, platformIdentityStep, readVisibleFrameCollectionOptionTexts, redactedTextEvidence, textContainsContentFingerprint } from "./common.mjs";
+import { collectionInspectResult, comparePlatformDateTime, formatPlatformDateTime, normalizeCollectionNames, normalizeXhsTag, platformIdentityStep, readVisibleFrameCollectionOptionTexts, redactedTextEvidence, textContainsContentFingerprint } from "./common.mjs";
 
 export const wechatChannelsAdapter = {
     async run(ctx) {
@@ -220,6 +220,16 @@ const WECHAT_CHANNELS_TEXT = {
   schedulePlaceholder: "\u8bf7\u9009\u62e9\u53d1\u8868\u65f6\u95f4",
   publish: "\u53d1\u8868"
 };
+
+const WECHAT_CHANNELS_COLLECTION_LABELS = ["\u6dfb\u52a0\u5230\u5408\u96c6", "\u5408\u96c6"];
+const WECHAT_CHANNELS_COLLECTION_SELECTORS = [
+  ".post-album-wrap",
+  ".post-album-display-wrap",
+  ".weui-desktop-popover li",
+  ".weui-desktop-popover [role='option']",
+  ".weui-desktop-dialog li",
+  "[role='listbox'] [role='option']"
+];
 
 const WECHAT_CHANNELS_TITLE_SELECTOR = [
   `input[placeholder*='${WECHAT_CHANNELS_TEXT.titlePlaceholder}']`,
@@ -506,18 +516,60 @@ async function selectWechatChannelsTopics(page, frame, tags) {
 async function selectWechatChannelsCollection(frame, collection) {
   if (!collection) return step("collection", STATUS.skipped, "No value in plan.");
   try {
-    const opened = await clickWechatChannelsFormControl(frame, "\u6dfb\u52a0\u5230\u5408\u96c6", [".post-album-wrap", ".post-album-display-wrap"]);
+    const opened = await clickWechatChannelsAnyFormControl(frame, WECHAT_CHANNELS_COLLECTION_LABELS, [".post-album-wrap", ".post-album-display-wrap"]);
     if (!opened) return step("collection", STATUS.needsHuman, "WeChat Channels collection dropdown trigger not found.");
     await frame.page().waitForTimeout(800);
-    const option = frame.getByText(String(collection), { exact: true }).last();
-    if ((await option.count().catch(() => 0)) === 0) {
-      return step("collection", STATUS.needsHuman, `WeChat Channels collection dropdown opened, but option was not found: ${collection}`);
+    const options = normalizeCollectionNames(await readVisibleFrameCollectionOptionTexts(frame, WECHAT_CHANNELS_COLLECTION_SELECTORS));
+    const selectedName = chooseWechatChannelsCollectionName(options, collection);
+    if (!selectedName) {
+      return step("collection", STATUS.needsHuman, `WeChat Channels collection dropdown opened, but option was not found: ${collection}`, {
+        requested_collection: collection,
+        option_count: options.length,
+        option_name_lengths: options.map((item) => item.length)
+      });
     }
-    await option.click({ timeout: 5000, force: true });
-    return step("collection", STATUS.done, `WeChat Channels collection selected: ${collection}`);
+    const clicked = await clickWechatChannelsCollectionOption(frame, selectedName);
+    if (!clicked) {
+      return step("collection", STATUS.needsHuman, `WeChat Channels collection option was discovered but could not be clicked: ${collection}`, {
+        requested_collection: collection,
+        selected_name_length: selectedName.length
+      });
+    }
+    await frame.page().waitForTimeout(1000);
+    const state = await readWechatChannelsAnyFormControlText(frame, WECHAT_CHANNELS_COLLECTION_LABELS, [".post-album-wrap", ".post-album-display-wrap", ".form-item-body"]);
+    const verified = state.includes(selectedName) || state.includes(String(collection));
+    return step(
+      "collection",
+      verified ? STATUS.done : STATUS.needsHuman,
+      verified ? `WeChat Channels collection selected: ${collection}` : `WeChat Channels collection was clicked, but selected state was not verified: ${collection}`,
+      {
+        requested_collection: collection,
+        selected_name_length: selectedName.length,
+        option_count: options.length,
+        ...redactedTextEvidence(state, "state")
+      }
+    );
   } catch (error) {
     return step("collection", STATUS.needsHuman, `WeChat Channels collection needs manual handling: ${error.message.split("\n")[0]}`);
   }
+}
+
+export function chooseWechatChannelsCollectionName(options, requestedCollection) {
+  const requested = String(requestedCollection || "").replace(/\s+/g, " ").trim();
+  if (!requested) return null;
+  const normalized = normalizeCollectionNames(options);
+  return normalized.find((item) => item === requested)
+    || normalized.find((item) => item.includes(requested) || requested.includes(item))
+    || null;
+}
+
+async function clickWechatChannelsCollectionOption(frame, collectionName) {
+  const exact = frame.getByText(String(collectionName), { exact: true }).last();
+  if ((await exact.count().catch(() => 0)) > 0) {
+    await exact.click({ timeout: 5000, force: true });
+    return true;
+  }
+  return clickWechatChannelsVisibleText(frame, collectionName);
 }
 
 async function setWechatChannelsDeclaration(frame, declaration, plan) {
@@ -673,6 +725,14 @@ async function readWechatChannelsFormControlText(frame, label, selectors) {
     }
     return (row.innerText || row.textContent || "").trim();
   }, { label, selectors }).catch(() => "");
+}
+
+async function readWechatChannelsAnyFormControlText(frame, labels, selectors) {
+  for (const label of labels) {
+    const text = await readWechatChannelsFormControlText(frame, label, selectors);
+    if (text) return text;
+  }
+  return "";
 }
 
 async function clickWechatChannelsScheduledRadio(frame) {
@@ -1013,6 +1073,14 @@ async function clickWechatChannelsFormControl(frame, label, selectors) {
   }, { label, selectors }).catch(() => false);
 }
 
+async function clickWechatChannelsAnyFormControl(frame, labels, selectors) {
+  for (const label of labels) {
+    const clicked = await clickWechatChannelsFormControl(frame, label, selectors);
+    if (clicked) return true;
+  }
+  return false;
+}
+
 async function clickWechatChannelsVisibleText(frame, text) {
   const deadline = Date.now() + 6000;
   while (Date.now() < deadline) {
@@ -1073,14 +1141,9 @@ export async function inspectWechatChannelsCollections(page, plan, logDir) {
     steps.push(await openWechatChannelsComposer(page, plan));
     if (steps[steps.length - 1].status === STATUS.done) {
       const frame = await wechatContentFrame(page);
-      const opened = await clickWechatChannelsFormControl(frame, "\u6dfb\u52a0\u5230\u5408\u96c6", [".post-album-wrap", ".post-album-display-wrap"]);
+      const opened = await clickWechatChannelsAnyFormControl(frame, WECHAT_CHANNELS_COLLECTION_LABELS, [".post-album-wrap", ".post-album-display-wrap"]);
       steps.push(step("open_collection_dropdown", opened ? STATUS.done : STATUS.needsHuman, opened ? "WeChat Channels collection dropdown opened." : "WeChat Channels collection dropdown trigger not found."));
-      const values = opened ? await readVisibleFrameCollectionOptionTexts(frame, [
-        ".weui-desktop-popover:visible li",
-        ".weui-desktop-popover:visible [role='option']",
-        ".weui-desktop-dialog:visible li",
-        "[role='listbox']:visible [role='option']"
-      ]) : [];
+      const values = opened ? await readVisibleFrameCollectionOptionTexts(frame, WECHAT_CHANNELS_COLLECTION_SELECTORS) : [];
       const collections = normalizeCollectionNames(values);
       steps.push(step("collections", collections.length > 0 ? STATUS.done : STATUS.needsHuman, collections.length > 0 ? `Discovered ${collections.length} WeChat Channels collection(s).` : "WeChat Channels collection list was not reliably discoverable; capture artifacts and choose manually.", {
         collection_count: collections.length,

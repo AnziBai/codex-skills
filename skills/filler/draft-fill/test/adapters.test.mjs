@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import {
   appendPlainHashTags,
   adapters,
+  chooseWechatChannelsCollectionName,
   classifyWechatChannelsInput,
   collectionInspectors,
   douyinAdapter,
@@ -113,6 +114,10 @@ assert.deepEqual(
   normalizeCollectionNames(["  量价课程  ", "选择合集", "量价课程", "取消", "宏观复盘", "加载中", "", "Add to collection", "宏观复盘 "]),
   ["量价课程", "宏观复盘"]
 );
+assert.deepEqual(normalizeCollectionNames(["宽论", "3条", "2篇", "10 items", "合集"]), ["宽论"]);
+assert.equal(chooseWechatChannelsCollectionName(["宽论", "宏观复盘"], "宽论"), "宽论");
+assert.equal(chooseWechatChannelsCollectionName(["宽论长期合集"], "宽论"), "宽论长期合集");
+assert.equal(chooseWechatChannelsCollectionName(["宏观复盘"], "宽论"), null);
 
 const cacheProfile = `adapter-test-${Date.now()}`;
 const cacheWrite = await writeCollectionCache({

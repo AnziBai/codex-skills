@@ -32,6 +32,6 @@ This document records sanitized evidence for the social publisher draft-fill flo
 
 ## Evidence Gaps
 
-- WeChat Channels collection discovery needs a conservative inspector and cache before image flow can be called production-ready.
+- WeChat Channels collection discovery now has a conservative inspector/cache path, but it still needs new real evidence with a verified account fingerprint before image flow can be called production-ready.
 - WeChat Channels video flow still needs a separate real upload and field verification pass.
 - Artifact references above point to local generated output and must not cause `out/`, screenshots, DOM snapshots, cookies, or Chrome profiles to be committed.

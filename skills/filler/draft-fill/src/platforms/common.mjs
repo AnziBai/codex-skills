@@ -46,7 +46,7 @@ export function normalizeCollectionNames(values) {
     const lower = name.toLowerCase();
     if (chrome.some((item) => lower === item.toLowerCase())) continue;
     if (/^[+＋]?$/.test(name)) continue;
-    if (/^\d+\s*(个|items?)?$/i.test(name)) continue;
+    if (/^\d+\s*(个|条|篇|items?)?$/i.test(name)) continue;
     if (/^(请选择|搜索|创建|新建|管理|取消|确定|确认|完成|保存|loading|select|search|create|cancel|confirm|done|save)\b/i.test(name)) continue;
     if (name.length > 80) continue;
     if (seen.has(name)) continue;

@@ -568,7 +568,7 @@ function Get-DraftSchedule {
 function Get-InferredCollection {
   param([object]$Manifest, [string]$Platform, [string]$Title, [string]$Body)
 
-  if (@("douyin", "xiaohongshu") -notcontains $Platform) { return $null }
+  if (@("douyin", "xiaohongshu", "wechat_channels") -notcontains $Platform) { return $null }
 
   $parts = New-Object System.Collections.Generic.List[string]
   foreach ($value in @($Title, $Body, [string]$Manifest.summary, [string]$Manifest.audience)) {

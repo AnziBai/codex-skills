@@ -186,6 +186,13 @@ async function preflight(args) {
     });
   }
   if (plan?.collection && profileName && validateProfileName(profileName).ok) {
+    if (!accountFingerprintFromPlan(plan)) {
+      questions.push({
+        id: "account_fingerprint",
+        question: "What stable account_fingerprint should be recorded for this profile before trusting collection cache?",
+        why: "Collection caches are account-specific. Without a verified account fingerprint, inspect-collections can discover options but draft-fill will not trust them automatically."
+      });
+    }
     const cacheStatus = await readCollectionCache({
       profileName,
       platform: plan.platform,
@@ -295,6 +302,25 @@ function collectPreflightPrompts(plan, manifest, questions, confirmations) {
       message: "Douyin declaration is platform-specific; trading education defaults to personal opinion/viewpoint, not Xiaohongshu-style originality."
     });
   }
+  if (plan.platform === "wechat_channels") {
+    addConfirmation(confirmations, {
+      id: "wechat_channels_status",
+      severity: "warning",
+      message: "WeChat Channels image flow is production-candidate: it can reach the final publish boundary, but collection/category behavior may still require account-specific inspection. Video flow remains experimental."
+    });
+    if (plan.music?.strategy === "first_recommended") {
+      addConfirmation(confirmations, {
+        id: "wechat_channels_music",
+        message: "WeChat Channels will try to select the first recommended music item because the draft plan requests first_recommended."
+      });
+    } else if (!plan.music || plan.music.strategy === "none") {
+      addQuestion(questions, {
+        id: "wechat_channels_music",
+        question: "Should WeChat Channels use no music or select the first recommended music item?",
+        why: "WeChat Channels music behavior is account/page specific; confirm the desired default before real draft filling."
+      });
+    }
+  }
 }
 
 function collectManifestIntakePrompts(plan, manifest, questions, confirmations) {
@@ -349,6 +375,13 @@ function collectUnscheduledWarnings(plan, manifest, confirmations) {
       id: "douyin_unscheduled_draft_warning",
       severity: "warning",
       message: "No scheduling is set. Douyin desktop Creator Center may not preserve drafts like Xiaohongshu, so unscheduled Douyin batches may require finalizing one item before preparing the next. Xiaohongshu can usually save drafts. WeChat Channels draft retention is unknown until the logged-in profile proves it."
+    });
+  }
+  if (platforms.has("wechat_channels")) {
+    addConfirmation(confirmations, {
+      id: "wechat_channels_unscheduled_draft_warning",
+      severity: "warning",
+      message: "No scheduling is set for WeChat Channels. Draft retention is account-specific and not fully proven; for batches, prefer scheduling or prepare one draft at a time."
     });
   }
 }
@@ -481,7 +514,7 @@ function sampleManifest(platform, targetId) {
     tone: "清晰可靠",
     assets: { cover: "assets/1.png", images: ["assets/1.png"], video: "" },
     tags: ["自动化测试", "发布助手"],
-    collection: platform === "douyin" ? "宽论" : "测试",
+    collection: ["douyin", "wechat_channels"].includes(platform) ? "宽论" : "测试",
     publish_mode: "immediate",
     publish_at: null,
     targets: [{ target_id: targetId, platform, kind: "image", account_id: `${platform}_main` }]
@@ -509,7 +542,7 @@ function sampleDraftPlan(root, manifest, platform, targetId, imagePath) {
     declaration: platform === "douyin"
       ? { mode: "personal_opinion", label: "内容为个人观点或见解" }
       : { mode: "original", label: platform === "xiaohongshu" ? "原创声明" : "原创" },
-    music: platform === "douyin" ? { strategy: "first_recommended", name: null } : { strategy: "none", name: null },
+    music: ["douyin", "wechat_channels"].includes(platform) ? { strategy: "first_recommended", name: null } : { strategy: "none", name: null },
     schedule: { mode: "immediate", publish_at: null },
     stop_before_publish: true,
     safety: { never_click_publish: true, no_system_clipboard: true }

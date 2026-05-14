@@ -63,13 +63,8 @@ Latest robustness result: five consecutive Douyin runs completed with `overall_s
 
 ### WeChat Channels
 
-Status: pending.
-
-The first exploratory run stopped at login:
-
-```text
-https://channels.weixin.qq.com/login.html
-```
+Status: image flow is `production-candidate`; video flow is still
+`experimental`.
 
 Existing test work:
 
@@ -83,7 +78,14 @@ Suggested next command after logging into the dedicated profile:
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" draft-fill -WorkDir ".\wechat-channels-test-work" -TargetId "wechat-channels-main-image" -ProfileName "wechat-channels-main" -ConfirmIntake -Json
 ```
 
-Read `skills/filler/references/wechat-channels-real-publish-runbook.md` before implementing selectors.
+Current evidence says two image runs reached the final publish boundary without
+clicking it, but both still needed human handling for collection/category. The
+adapter now treats collection choice conservatively: it verifies a discovered
+option, clicks only a matching collection, reads selected state back, and returns
+`needs_human` if the option or readback is unclear.
+
+Read `skills/filler/references/wechat-channels-real-publish-runbook.md` before
+changing selectors.
 
 ## Engineering Rules To Preserve
 
@@ -95,9 +97,13 @@ Read `skills/filler/references/wechat-channels-real-publish-runbook.md` before i
 
 ## Next Steps
 
-1. Configure a GitHub remote or working GitHub connector, then push `codex/filler-production-cli`.
-2. Decide whether to delete or preserve the current untracked QA/sample JSON files.
-3. Log into WeChat Channels in the `wechat-channels-main` profile.
-4. Run the WeChat Channels draft fill command and collect page structure, screenshots, and failure artifacts.
-5. Implement the `wechat_channels` adapter until it reaches the final publish boundary.
-6. Run repeated robustness checks for WeChat Channels.
+1. Decide whether to delete or preserve the current untracked QA/sample JSON files.
+2. In the logged-in `wechat-channels-main` profile, run `preflight` and then
+   `inspect-collections` with an explicit `account_fingerprint` in the plan if
+   collection selection should be automatic.
+3. Run one immediate and one scheduled WeChat Channels image draft-fill and
+   verify the collection step, music step, schedule readback, and publish
+   boundary.
+4. Add the sanitized evidence to `docs/filler-verification-evidence.md`.
+5. Only after image flow is stable, test WeChat Channels video upload as a
+   separate surface.

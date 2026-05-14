@@ -136,7 +136,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\fil
 | --- | --- | --- |
 | 小红书 | 已跑通到发布前人工确认 | 多图上传、中文标题正文、话题 token、合集、原创声明、内容声明、定时或不定时、发布边界验证 |
 | 抖音 | 已跑通到发布前人工确认，继续做健壮性增强 | 多图和视频上传、标题正文、话题 token、合集、个人观点声明、推荐音乐、定时策略、发布边界验证 |
-| 视频号 | 开发中 | 已完成页面探索和 runbook，图文流程正在收口 |
+| 视频号 | 图文 `production-candidate`，视频仍实验 | 两组图文真实运行已到最终发表按钮前；上传、标题正文、音乐、活动、定时和发布边界有证据，合集/分类仍可能因账号差异返回 `needs_human` |
 
 ---
 
@@ -212,4 +212,4 @@ rg -n "skills\\filler|skills/filler|filler.ps1|final publish boundary|ConfirmInt
 - [failure diagnostics](skills/filler/references/failure-diagnostics.md)
 - [WeChat Channels runbook](skills/filler/references/wechat-channels-real-publish-runbook.md)
 
-当前最重要的下一步：把视频号图文流程收口到和小红书、抖音同级，再继续做三平台批量发布的迁移体验。
+当前最重要的下一步：把视频号图文的合集/分类缓存和账号指纹确认收口，再继续做视频号视频流程与三平台批量发布迁移体验。

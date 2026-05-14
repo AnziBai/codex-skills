@@ -11,6 +11,11 @@ image draft-fill runs reached the final publish boundary without clicking it,
 but collection/category behavior can still return `needs_human` when the
 requested option is missing or the UI is account-specific.
 
+The adapter can inspect and cache visible collection names, but draft filling
+trusts that cache only when `draft-plan.json` has a stable
+`account_fingerprint` and the operator runs `inspect-collections` with
+`-ConfirmAccountFingerprint` after checking the visible account.
+
 WeChat Channels video posting remains `experimental` unless a newer run log
 proves the complete video path.
 
@@ -33,6 +38,8 @@ Ask or confirm:
   unknown and account-specific until verified for this profile.
 - Title optimization preference.
 - Category/collection strategy, if the logged-in UI exposes one.
+- Stable `account_fingerprint` for this profile when automatic collection
+  selection is required.
 - Declaration/compliance controls, only after the logged-in UI confirms what
   WeChat Channels currently provides.
 - Final publish boundary: automation stops before the public publish action.
@@ -65,6 +72,17 @@ Preflight:
 
 If preflight returns `needs_human` or exit code `4`, answer the questions before
 opening the real page.
+
+If collection selection should be automatic, add a stable
+`account_fingerprint` to the manifest or target override before inspecting
+collections.
+
+Inspect collections and trust the cache only after the visible account is
+verified:
+
+```powershell
+& powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher inspect-collections -WorkDir ".\work" -TargetId "<target-id>" -ProfileName "wechat-channels-main" -ConfirmAccountFingerprint -Json
+```
 
 Optional page inspection for mapping work:
 
@@ -108,8 +126,9 @@ profile and account:
 - Confirm title and body fields separately; some surfaces may expose only a body
   or description.
 - Confirm whether tags/topics exist and whether they require suggestion tokens.
-- Confirm category/collection controls from the logged-in UI. If the requested
-  option is absent, return `needs_human`.
+- Confirm category/collection controls from the logged-in UI. The adapter clicks
+  only a discovered matching collection and then reads selected state back. If
+  the requested option or readback is unclear, return `needs_human`.
 - Confirm declaration/compliance controls from the logged-in UI. Do not apply
   Xiaohongshu originality or Douyin personal-opinion logic by analogy.
 - Confirm schedule controls and report any platform-adjusted time.

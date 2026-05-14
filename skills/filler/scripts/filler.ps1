@@ -1,6 +1,6 @@
 ﻿param(
   [Parameter(Position = 0, Mandatory = $true)]
-  [ValidateSet("validate", "publish", "resume", "retry-failed", "record-manual-result", "status", "copy-generate", "copy-select", "draft-plan", "setup-draft-fill", "draft-fill", "doctor", "preflight", "sample-run", "diagnose-failure", "result-summary", "robustness-matrix", "inspect-collections", "inspect-wechat-channels")]
+  [ValidateSet("validate", "publish", "resume", "retry-failed", "record-manual-result", "status", "copy-generate", "copy-select", "draft-plan", "setup-draft-fill", "open-profile", "login-profile", "draft-fill", "doctor", "preflight", "sample-run", "diagnose-failure", "result-summary", "robustness-matrix", "inspect-collections", "inspect-wechat-channels")]
   [string]$Command,
 
   [string]$WorkDir,
@@ -1086,6 +1086,10 @@ try {
   if ($Command -eq "setup-draft-fill") {
     Install-DraftFillDependencies
     Invoke-DraftFillNode "setup" $null $null $ProfileName $Platform $Surface $SourceRoot $OutputRoot $false $ConfirmAccountFingerprint $Json
+  }
+
+  if ($Command -eq "open-profile" -or $Command -eq "login-profile") {
+    Invoke-DraftFillNode $Command $null $null $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json
   }
 
   if ($Command -eq "doctor") {

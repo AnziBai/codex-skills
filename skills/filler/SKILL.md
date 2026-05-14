@@ -78,6 +78,7 @@ $LocalPublisher = Join-Path $HOME ".codex\skills\filler\scripts\filler.ps1"
 $Publisher = if (Test-Path -LiteralPath $RepoPublisher) { $RepoPublisher } else { $LocalPublisher }
 if (-not (Test-Path -LiteralPath $Publisher)) { throw "filler CLI not found: $Publisher" }
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher setup-draft-fill -Json
+& powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher open-profile -ProfileName "xhs-main" -Platform "xiaohongshu" -Json
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher copy-generate -WorkDir ".\work" -Json
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher copy-select -WorkDir ".\work" -TargetId "xhs-main-note" -CandidateId "xhs-main-note-2" -Json
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher draft-plan -WorkDir ".\work" -TargetId "xhs-main-note" -Json
@@ -94,6 +95,12 @@ requires `-ConfirmIntake`; only pass it after the operator answered preflight
 questions and reviewed confirmations. Use `-ConfirmAccountFingerprint`
 only after the operator has verified that the current profile is the intended
 account and `draft-plan.json` contains the expected `account_fingerprint`.
+
+Use `open-profile` or its alias `login-profile` when the operator needs to log
+in before a real run. It opens the exact persistent profile path used later by
+`preflight`, `inspect-collections`, and `draft-fill`, including when the skill
+is installed under a workspace path with spaces. Ask the user to close that
+browser after login so the profile lock is released cleanly.
 
 `needs_human` and exit code `4` mean the tool stopped intentionally for an
 operator decision or manual platform step. Read `questions`, `confirmations`,

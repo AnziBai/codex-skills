@@ -17,6 +17,7 @@ import {
   overallStatus,
   parseArgs,
   profileDir,
+  platformPublishUrl,
   redactArtifactUrl,
   redactedArtifactHtml,
   readJson,
@@ -33,6 +34,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(3));
   try {
     if (command === "setup") return await setup(args);
+    if (command === "open-profile" || command === "login-profile") return await openProfile(args, command);
     if (command === "doctor") return await doctor(args);
     if (command === "preflight") return await preflight(args);
     if (command === "sample-run") return await sampleRun(args);
@@ -49,6 +51,84 @@ async function main() {
     }
     return exit(1, { ok: false, error: String(error && error.message ? error.message : error) }, args.json);
   }
+}
+
+async function openProfile(args, command = "open-profile") {
+  const platform = args.platform || inferPlatformFromProfileName(args.profileName) || "xiaohongshu";
+  const profileName = args.profileName || defaultProfileName(platform);
+  const profileValidation = validateProfileName(profileName);
+  if (!profileValidation.ok) {
+    return exit(2, { ok: false, command, error_code: profileValidation.error_code, error: profileValidation.message }, args.json);
+  }
+
+  const steps = [];
+  await collectRuntimeReadiness(steps);
+  if (steps.some((item) => item.status === STATUS.failed)) {
+    return exit(2, { ok: false, command, profile_name: profileName, platform, steps }, args.json);
+  }
+
+  if (args.dryRun) {
+    const profilePath = profileDir(profileName);
+    return exit(0, {
+      ok: true,
+      command,
+      dry_run: true,
+      profile_name: profileName,
+      platform,
+      profile_dir: profilePath,
+      profile_exists: await exists(profilePath),
+      profile_created: false,
+      steps: [...steps, step("open_profile", STATUS.done, "Validated profile launch request without opening browser.")]
+    }, args.json);
+  }
+
+  const readiness = await ensureProfileReadiness(steps, profileName, platform, { autoCreate: true });
+  if (steps.some((item) => item.status === STATUS.failed)) {
+    return exit(2, { ok: false, command, profile_name: profileName, platform, steps }, args.json);
+  }
+
+  let profile;
+  try {
+    profile = await launchPersistentProfile({
+      profileName,
+      platform,
+      targetId: command,
+      keepOpen: true,
+      launchOptions: {
+        viewport: { width: 1440, height: 960 }
+      }
+    });
+    const page = profile.page;
+    const url = platformPublishUrl(platform);
+    if (url && url !== "about:blank") {
+      await page.goto(url, { waitUntil: "domcontentloaded" }).catch(() => {});
+    }
+    const openedAt = new Date().toISOString();
+    await profile.closed.catch(() => {});
+    return exit(0, {
+      ok: true,
+      command,
+      profile_name: profileName,
+      platform,
+      profile_dir: profileDir(profileName),
+      opened_at: openedAt,
+      browser_lifecycle: "closed_by_operator",
+      steps: [
+        ...steps,
+        step("open_profile", STATUS.done, `Opened visible browser for ${profileName}. Close it after login is complete.`)
+      ]
+    }, args.json);
+  } finally {
+    if (profile?.release) await profile.release().catch(() => {});
+  }
+}
+
+function inferPlatformFromProfileName(profileName) {
+  const value = String(profileName || "").toLowerCase();
+  if (value.startsWith("xhs") || value.includes("xiaohongshu")) return "xiaohongshu";
+  if (value.includes("douyin")) return "douyin";
+  if (value.includes("wechat") || value.includes("channels") || value.includes("shipinhao")) return "wechat_channels";
+  return null;
 }
 
 async function resultSummary(args) {

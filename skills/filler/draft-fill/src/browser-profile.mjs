@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { validateProfileName } from "./collection-cache.mjs";
-import { ensureDir, profileDir, skillRoot } from "./utils.mjs";
+import { ensureDir, skillRoot } from "./utils.mjs";
 
 export class ProfileLockHeldError extends Error {
   constructor(payload) {
@@ -15,6 +15,11 @@ export class ProfileLockHeldError extends Error {
 export function lockFilePath(profileName, profilesRoot = defaultProfilesRoot()) {
   assertProfileName(profileName);
   return path.join(profilesRoot, `${profileName}.draft-fill.lock`);
+}
+
+export function profileUserDataDir(profileName, profilesRoot = defaultProfilesRoot()) {
+  assertProfileName(profileName);
+  return path.join(profilesRoot, profileName);
 }
 
 export async function acquireProfileLock({
@@ -132,8 +137,9 @@ export async function launchPersistentProfile({
     }
     cleanupInstalled = true;
     const browser = chromium || (await import("playwright")).chromium;
-    await ensureDir(profileDir(profileName));
-    context = await browser.launchPersistentContext(profileDir(profileName), {
+    const userDataDir = profileUserDataDir(profileName, profilesRoot);
+    await ensureDir(userDataDir);
+    context = await browser.launchPersistentContext(userDataDir, {
       headless: false,
       acceptDownloads: true,
       ...launchOptions

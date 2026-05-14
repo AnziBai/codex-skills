@@ -34,6 +34,17 @@ profile, pass `-ProfileName`:
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher setup-draft-fill -ProfileName "xhs-main" -Json
 ```
 
+Open the exact same persistent profile for human login before a real run:
+
+```powershell
+& powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher open-profile -ProfileName "xhs-main" -Platform "xiaohongshu" -Json
+```
+
+`open-profile` also has the alias `login-profile`. It uses the same Playwright
+persistent profile path as `draft-fill` and avoids shell quoting bugs around
+workspace paths that contain spaces. Close the visible browser after login so
+the profile lock is released before `inspect-collections` or `draft-fill`.
+
 Recommended profile names:
 
 - `xhs-main`

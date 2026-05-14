@@ -8,7 +8,9 @@ import { fileURLToPath } from "node:url";
 import {
   ProfileLockHeldError,
   acquireProfileLock,
+  launchPersistentProfile,
   lockFilePath,
+  profileUserDataDir,
   releaseProfileLock
 } from "../src/browser-profile.mjs";
 
@@ -167,6 +169,37 @@ const dryRunProfile = "dry-run-profile";
 assert.equal(lockFilePath(dryRunProfile, root), path.join(root, "dry-run-profile.draft-fill.lock"));
 await assert.rejects(fs.access(lockFilePath(dryRunProfile, root)), { code: "ENOENT" });
 
+const spacedProfilesRoot = path.join(root, "profile root with spaces");
+const spacedProfileName = "space-safe-profile";
+let capturedUserDataDir = null;
+const fakeContext = {
+  once() {},
+  pages() {
+    return [{
+      async goto() {}
+    }];
+  },
+  async close() {}
+};
+const spacedProfile = await launchPersistentProfile({
+  profilesRoot: spacedProfilesRoot,
+  profileName: spacedProfileName,
+  platform: "xiaohongshu",
+  targetId: "space-safe-target",
+  keepOpen: false,
+  chromium: {
+    async launchPersistentContext(userDataDir) {
+      capturedUserDataDir = userDataDir;
+      return fakeContext;
+    }
+  }
+});
+assert.equal(capturedUserDataDir, profileUserDataDir(spacedProfileName, spacedProfilesRoot));
+assert.equal(capturedUserDataDir.includes(" "), true);
+await fs.access(capturedUserDataDir);
+await spacedProfile.release();
+await assert.rejects(fs.access(lockFilePath(spacedProfileName, spacedProfilesRoot)), { code: "ENOENT" });
+
 const dryRunWorkDir = await fs.mkdtemp(path.join(os.tmpdir(), "draft-fill-dry-run-"));
 const dryRunAsset = path.join(dryRunWorkDir, "asset.png");
 await fs.writeFile(dryRunAsset, Buffer.from("iVBORw0KGgo=", "base64"));
@@ -212,6 +245,36 @@ const dryRunResult = JSON.parse(stdout);
 assert.equal(dryRunResult.ok, undefined);
 assert.equal(dryRunResult.dry_run, true);
 await assert.rejects(fs.access(dryRunLockPath), { code: "ENOENT" });
+
+const { stdout: openProfileStdout } = await execFileAsync(process.execPath, [
+  cliPath,
+  "open-profile",
+  "--profile-name",
+  `open-profile-${Date.now()}`,
+  "--platform",
+  "douyin",
+  "--dry-run",
+  "--json"
+]);
+const openProfileResult = JSON.parse(openProfileStdout);
+assert.equal(openProfileResult.ok, true);
+assert.equal(openProfileResult.command, "open-profile");
+assert.equal(openProfileResult.dry_run, true);
+assert.equal(openProfileResult.platform, "douyin");
+assert.equal(openProfileResult.profile_created, false);
+
+const { stdout: loginProfileStdout } = await execFileAsync(process.execPath, [
+  cliPath,
+  "login-profile",
+  "--profile-name",
+  `wechat-channels-login-${Date.now()}`,
+  "--dry-run",
+  "--json"
+]);
+const loginProfileResult = JSON.parse(loginProfileStdout);
+assert.equal(loginProfileResult.ok, true);
+assert.equal(loginProfileResult.command, "login-profile");
+assert.equal(loginProfileResult.platform, "wechat_channels");
 
 await assert.rejects(
   execFileAsync(process.execPath, [

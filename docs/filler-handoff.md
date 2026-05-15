@@ -1,12 +1,13 @@
 # Filler Handoff
 
-Last updated: 2026-05-14.
+Last updated: 2026-05-15.
 
 ## Branch And Commit
 
 - Repository: this workspace root.
 - Branch: `codex/filler-production-cli`
-- Latest pushed commit: `2795d83 Harden scheduled publish handoff`
+- Latest verified pushed base before this sync:
+  `444a0aa Document Douyin manual queue handoff`
 - Push status: pushed to `origin/codex/filler-production-cli`.
 - Pull request: https://github.com/AnziBai/codex-skills/pull/3
 
@@ -21,6 +22,10 @@ Last updated: 2026-05-14.
 - Added real-profile safeguards for workspaces whose paths contain spaces.
 - Confirmed the 2026-05-14 `21-40` operator flow can prepare drafts across the
   three target platforms while preserving the human final-publish boundary.
+- Recorded the operator-assisted scheduled queue pattern for Douyin and WeChat
+  Channels: automation fills the draft, the operator handles collection/final
+  scheduled publish when needed, and automation continues after it verifies the
+  platform returned to the publish entry or management surface.
 
 ## Validation
 
@@ -79,7 +84,8 @@ Iteration note:
 
 ### Xiaohongshu
 
-Status: stable to the final publish boundary.
+Status: stable through strict scheduled-confirmation and manual handoff
+boundaries.
 
 Covered behavior:
 
@@ -89,7 +95,12 @@ Covered behavior:
 - Choose a broad collection, currently the Kuanlun collection for the tested work.
 - Complete content declaration and original declaration, including the second confirmation.
 - Set schedule when requested.
-- Verify the final publish button exists without clicking it.
+- For immediate runs, preserve the human publish boundary and save/leave a
+  draft when the platform can verify it.
+- For batch or multi-platform scheduled runs, confirm scheduled publish only
+  after schedule readback, collection, declarations, topics, and the publish
+  boundary are all verified. If the button is not safely resolvable, hand off to
+  the operator instead of guessing.
 
 ### Douyin
 
@@ -112,14 +123,12 @@ Latest robustness result: five consecutive Douyin runs completed with `overall_s
 
 Operator queue note from 2026-05-14:
 
-- A local prototype in `out/` proved the desired loop for Douyin scheduled
-  batches: automation fills one work, the operator manually selects collection
-  and clicks publish, Douyin returns to works management, and automation
-  continues to the next work.
-- That prototype is intentionally not committed because `out/` may contain
-  local publishing artifacts. Productize this behavior in the committed
-  `batch-draft-fill` or a dedicated queue command before treating it as a
-  reusable team feature.
+- The committed scheduled handoff flow now supports the desired loop for Douyin
+  scheduled batches: automation fills one work, the operator manually selects
+  collection and clicks publish when requested, Douyin returns to works
+  management or the upload entry, and automation continues to the next work.
+- The earlier `out/` prototype remains intentionally uncommitted because `out/`
+  may contain local publishing artifacts.
 - The queue detector should wait for a return to works management/upload state,
   not for the operator to close the browser window.
 
@@ -146,6 +155,15 @@ adapter now treats collection choice conservatively: it verifies a discovered
 option, clicks only a matching collection, reads selected state back, and returns
 `needs_human` if the option or readback is unclear.
 
+Operator note from the 2026-05-14 batch test:
+
+- WeChat Channels topics must be entered one by one as `#topic` followed by a
+  space so the UI turns each one into a blue topic token. Plain pasted hashtags
+  do not count as completed topic selection.
+- The operator may handle collection choice and final scheduled publish. The
+  queue should continue only after detecting a return to `图文管理` or the
+  visible `发表图文` / `发布图文` publish entry.
+
 Read `skills/filler/references/wechat-channels-real-publish-runbook.md` before
 changing selectors.
 
@@ -161,9 +179,9 @@ changing selectors.
 
 1. Fix the login-profile UX issue above so operator login, Playwright
    automation, and direct Chrome fallback all use one verified profile state.
-2. Productize the Douyin manual-publish queue behavior that was proven locally
-   on 2026-05-14, without committing real run logs, screenshots, DOM dumps, or
-   account-specific profile state.
+2. Verify the committed Douyin and WeChat Channels operator-assisted scheduled
+   queue on another two-work batch, without committing real run logs,
+   screenshots, DOM dumps, or account-specific profile state.
 3. In the logged-in `wechat-channels-main` profile, run `preflight` and then
    `inspect-collections` with an explicit `account_fingerprint` in the plan if
    collection selection should be automatic.

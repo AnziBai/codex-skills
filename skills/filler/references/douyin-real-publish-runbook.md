@@ -50,10 +50,9 @@ clicks will be handled manually.
   to works management or the upload entry after the operator publishes, then
   continue with the next work. Do not require the operator to close the browser
   window between items.
-- This queue behavior was validated as a local operator prototype on
-  2026-05-14. Before team handoff, productize it inside the committed
-  `batch-draft-fill` flow or a dedicated command; do not commit local `out/`
-  scripts, run logs, screenshots, DOM dumps, or profile artifacts.
+- This queue behavior was validated on 2026-05-14 and then moved into the
+  committed scheduled handoff flow. Keep the earlier local `out/` prototype and
+  any real run logs, screenshots, DOM dumps, or profile artifacts uncommitted.
 
 Douyin may reject scheduled times that are too soon. On 2026-05-14 the platform
 adjusted a requested `2026-05-14 20:30` time to `2026-05-14 21:25` and displayed

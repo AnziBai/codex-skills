@@ -1,6 +1,6 @@
 import { STATUS, platformPublishUrl, saveArtifacts, step } from "../utils.mjs";
 
-import { collectionInspectResult, dismissKnownOverlays, escapeRegExp, expectText, formatPlatformDateTime, normalizeCollectionNames, normalizeXhsTag, platformIdentityStep, readLocatorValue, readVisibleCollectionOptionTexts, shouldStopEarly, uploadFiles, verifyPublishBoundary } from "./common.mjs";
+import { collectionInspectResult, dismissKnownOverlays, escapeRegExp, expectText, formatPlatformDateTime, normalizeCollectionNames, normalizeXhsTag, platformIdentityStep, readLocatorValue, readVisibleCollectionOptionTexts, saveDraftWithVisibleButton, shouldStopEarly, uploadFiles, verifyPublishBoundary } from "./common.mjs";
 
 export const xiaohongshuAdapter = {
     async run(ctx) {
@@ -23,6 +23,9 @@ export const xiaohongshuAdapter = {
       steps.push(await verifyPublishBoundary(page));
       await saveArtifacts(page, ctx.logDir, "xiaohongshu-final");
       return steps;
+    },
+    async saveDraftAndExit({ page }) {
+      return saveDraftWithVisibleButton(page, "Xiaohongshu", /^(保存草稿|暂存草稿|存草稿|存为草稿|保存并离开)$/);
     }
   };
 
@@ -34,14 +37,30 @@ async function fillXhsBody(page, value) {
     await editor.click({ timeout: 5000, force: true });
     await editor.fill(value, { timeout: 10000 });
     await page.waitForTimeout(500);
-    const actual = await readLocatorValue(editor);
-    if (!actual.includes(String(value).slice(0, Math.min(20, String(value).length)))) {
+    let actual = await readLocatorValue(editor);
+    if (!bodyTextMatches(actual, value)) {
+      await editor.click({ timeout: 5000, force: true });
+      await editor.press(process.platform === "darwin" ? "Meta+A" : "Control+A").catch(() => {});
+      await page.keyboard.insertText(String(value));
+      await page.waitForTimeout(800);
+      actual = await readLocatorValue(editor);
+    }
+    if (!bodyTextMatches(actual, value)) {
       return step("body", STATUS.needsHuman, "Xiaohongshu body editor did not retain expected text after filling.");
     }
     return step("body", STATUS.done, "body filled using Xiaohongshu ProseMirror editor.");
   } catch (error) {
     return step("body", STATUS.needsHuman, `Xiaohongshu body needs manual handling: ${error.message.split("\n")[0]}`);
   }
+}
+
+function bodyTextMatches(actual, expected) {
+  const normalize = (value) => String(value || "").replace(/\s+/g, "");
+  const expectedText = normalize(expected);
+  const actualText = normalize(actual);
+  if (!expectedText) return true;
+  const probe = expectedText.slice(0, Math.min(18, expectedText.length));
+  return actualText.includes(probe);
 }
 
 async function fillXhsTitle(page, value) {
@@ -232,6 +251,14 @@ async function setXhsSchedule(page, schedule) {
 }
 
 async function selectXhsContentDeclaration(page, declaration) {
+  const requested = declaration?.content_label
+    || declaration?.content_type_label
+    || declaration?.source_label
+    || declaration?.source_location
+    || declaration?.source_date;
+  if (!requested) {
+    return step("content_declaration", STATUS.skipped, "No Xiaohongshu content source declaration requested in plan.");
+  }
   const label = declaration?.content_label || declaration?.content_type_label || "内容来源声明";
   const sourceLabel = declaration?.source_label || "自主拍摄";
   const sourceLocation = declaration?.source_location || "";
@@ -387,11 +414,9 @@ export async function inspectXhsCollections(page, plan, logDir) {
 }
 
 async function openXhsCollectionDropdown(page) {
-  const row = page.locator("div").filter({ hasText: /加入合集|添加到合集|选择合集/ }).first();
-  if ((await row.count().catch(() => 0)) === 0) return false;
-  await row.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
-  const trigger = row.getByText(/选择合集|加入合集|添加到合集|不加入合集|宽论/, { exact: false }).last();
-  if ((await trigger.count().catch(() => 0)) === 0) return false;
+  const trigger = await xhsCollectionTrigger(page);
+  if (!trigger) return false;
+  await trigger.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
   await trigger.click({ timeout: 5000, force: true });
   await page.waitForTimeout(800);
   return true;
@@ -400,30 +425,109 @@ async function openXhsCollectionDropdown(page) {
 async function selectXhsCollection(page, collection) {
   if (!collection) return step("collection", STATUS.skipped, "No value in plan.");
   try {
-    const row = page.locator("div").filter({ hasText: /加入合集/ }).first();
-    await row.scrollIntoViewIfNeeded({ timeout: 5000 });
-    if (await row.getByText(String(collection), { exact: true }).count().catch(() => 0)) {
+    if (await verifyXhsCollectionSelected(page, collection)) {
       return step("collection", STATUS.done, `Xiaohongshu collection already selected: ${collection}`);
     }
 
-    const trigger = row.getByText(/选择合集|加入合集|宽论/, { exact: false }).last();
+    const trigger = await xhsCollectionTrigger(page, collection);
+    if (!trigger) {
+      return step("collection", STATUS.needsHuman, "Xiaohongshu collection trigger not found; expected the Content Settings > 加入合集 > 选择合集 control.");
+    }
+    await trigger.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
     await trigger.click({ timeout: 5000, force: true });
     await page.waitForTimeout(800);
 
-    const option = page.locator(".el-overlay, .d-popover, .d-dropdown, body")
-      .getByText(String(collection), { exact: true })
-      .last();
-    if ((await option.count()) === 0) {
-      return step("collection", STATUS.needsHuman, `Xiaohongshu collection dropdown opened, but option was not found: ${collection}`);
+    const option = await xhsCollectionOption(page, collection);
+    if (!option) {
+      await searchXhsCollectionDropdown(page, collection);
     }
-    await option.click({ timeout: 5000, force: true });
+    const searchedOption = option || await xhsCollectionOption(page, collection);
+    if (!searchedOption) {
+      const visibleOptions = await readVisibleCollectionOptionTexts(page, [
+        ".el-overlay:visible .el-select-dropdown__item",
+        ".el-overlay:visible .d-option",
+        ".d-popover:visible .d-option",
+        ".d-dropdown:visible .d-option",
+        "[role='listbox']:visible [role='option']",
+        ".el-overlay:visible [class*='option']",
+        ".d-popover:visible [class*='option']",
+        ".d-dropdown:visible [class*='option']"
+      ]);
+      return step("collection", STATUS.needsHuman, `Xiaohongshu collection dropdown opened, but option was not found: ${collection}`, {
+        requested_collection: collection,
+        visible_options: normalizeCollectionNames(visibleOptions).slice(0, 20)
+      });
+    }
+    await searchedOption.click({ timeout: 5000, force: true });
     await page.waitForTimeout(800);
+    await page.keyboard.press("Escape").catch(() => {});
 
-    if (!(await row.getByText(String(collection), { exact: true }).count().catch(() => 0))) {
+    if (!(await verifyXhsCollectionSelected(page, collection))) {
       return step("collection", STATUS.needsHuman, `Xiaohongshu collection clicked, but selected state was not visible: ${collection}`);
     }
     return step("collection", STATUS.done, `Xiaohongshu collection selected: ${collection}`);
   } catch (error) {
     return step("collection", STATUS.needsHuman, `Xiaohongshu collection needs manual handling: ${error.message.split("\n")[0]}`);
   }
+}
+
+async function xhsCollectionTrigger(page, collection = "") {
+  const exactLabels = ["选择合集", "不加入合集"];
+  if (collection) exactLabels.unshift(String(collection));
+  for (const label of exactLabels) {
+    const candidate = page.getByText(label, { exact: true }).last();
+    if ((await candidate.count().catch(() => 0)) > 0) return candidate;
+  }
+  const row = page.locator("div").filter({ hasText: /加入合集|添加到合集/ }).last();
+  if ((await row.count().catch(() => 0)) === 0) return null;
+  const trigger = row.getByText(/选择合集|不加入合集|加入合集|添加到合集/, { exact: false }).last();
+  if ((await trigger.count().catch(() => 0)) > 0) return trigger;
+  return row;
+}
+
+async function xhsCollectionOption(page, collection) {
+  const option = page.locator([
+    ".el-overlay:visible",
+    ".d-popover:visible",
+    ".d-dropdown:visible",
+    "[role='listbox']:visible",
+    "[role='dialog']:visible"
+  ].join(", "))
+    .getByText(String(collection), { exact: true })
+    .last();
+  if ((await option.count().catch(() => 0)) === 0) return null;
+  return option;
+}
+
+async function searchXhsCollectionDropdown(page, collection) {
+  const input = page.locator([
+    ".el-overlay:visible input",
+    ".d-popover:visible input",
+    ".d-dropdown:visible input",
+    "[role='dialog']:visible input",
+    "[role='listbox']:visible input"
+  ].join(", ")).first();
+  if ((await input.count().catch(() => 0)) === 0) return false;
+  await input.click({ timeout: 3000, force: true }).catch(() => {});
+  await input.fill(String(collection), { timeout: 5000 }).catch(async () => {
+    await input.press(process.platform === "darwin" ? "Meta+A" : "Control+A").catch(() => {});
+    await page.keyboard.type(String(collection), { delay: 40 });
+  });
+  await page.waitForTimeout(800);
+  return true;
+}
+
+async function verifyXhsCollectionSelected(page, collection) {
+  const section = page.locator("div")
+    .filter({ hasText: /内容设置/ })
+    .filter({ hasText: /加入合集|添加到合集/ })
+    .last();
+  if ((await section.count().catch(() => 0)) === 0) {
+    const row = page.locator("div")
+      .filter({ hasText: /加入合集|添加到合集/ })
+      .filter({ hasText: new RegExp(escapeRegExp(String(collection))) })
+      .last();
+    return (await row.count().catch(() => 0)) > 0;
+  }
+  return (await section.getByText(String(collection), { exact: true }).count().catch(() => 0)) > 0;
 }

@@ -364,6 +364,50 @@ export async function verifyPublishBoundary(page) {
   }
 }
 
+export async function saveDraftWithVisibleButton(page, platform, buttonNamePattern) {
+  try {
+    const buttons = page.getByRole("button", { name: buttonNamePattern });
+    const count = await buttons.count();
+    if (count !== 1) {
+      return step(
+        "draft_exit",
+        STATUS.needsHuman,
+        `${platform} save-draft button was not uniquely identifiable; found ${count}.`,
+        {
+          reason_code: count === 0 ? "save_draft_button_missing" : "save_draft_button_not_unique",
+          button_count: count
+        }
+      );
+    }
+    await buttons.first().click({ timeout: 5000, force: true });
+    const verified = await waitForDraftSavedEvidence(page, 8000);
+    if (!verified) {
+      return step("draft_exit", STATUS.needsHuman, `${platform} save-draft button was clicked, but saved draft state was not verified.`, {
+        reason_code: "save_draft_not_verified",
+        button_count: count
+      });
+    }
+    return step("draft_exit", STATUS.done, `${platform} draft saved and verified.`, {
+      reason_code: "draft_saved",
+      button_count: count
+    });
+  } catch (error) {
+    return step("draft_exit", STATUS.needsHuman, `${platform} save draft needs manual handling: ${error.message.split("\n")[0]}`, {
+      reason_code: "save_draft_exception"
+    });
+  }
+}
+
+async function waitForDraftSavedEvidence(page, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const text = await page.locator("body").innerText({ timeout: 2000 }).catch(() => "");
+    if (/保存成功|已保存|草稿已保存|已存入草稿|暂存成功|已暂存|草稿箱/.test(text)) return true;
+    await page.waitForTimeout?.(500);
+  }
+  return false;
+}
+
 export async function dismissKnownOverlays(page) {
   await page.keyboard.press("Escape").catch(() => {});
   for (const pattern of [/我知道了/, /知道了/, /稍后再说/, /取消/]) {

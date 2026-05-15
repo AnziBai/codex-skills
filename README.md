@@ -25,7 +25,7 @@
 
 | Skill | 一句话 | 状态 | 入口 |
 | --- | --- | --- | --- |
-| `filler` | 把已经完成的作品变成平台发布草稿：AI 写标题和文案，CLI 校验素材，Playwright 自动上传并填写小红书、抖音、视频号草稿，最终发布按钮留给人工。 | 生产试运行 | [SKILL.md](skills/filler/SKILL.md) · [同事指南](skills/filler/README.md) |
+| `filler` | 把已经完成的作品变成平台发布草稿：AI 写标题和文案，CLI 校验素材，Playwright 自动上传并填写小红书、抖音、视频号草稿；即时发布保存草稿，批量定时自动确认。 | 生产试运行 | [SKILL.md](skills/filler/SKILL.md) · [同事指南](skills/filler/README.md) |
 
 后续新的 skill 会继续放在 `skills/<skill-name>` 下。每个 skill 都应该可以单独安装、单独阅读、单独测试。
 
@@ -87,7 +87,8 @@ human final publish click
 - 使用专用 Chrome profile 复用登录态。
 - 自动上传图片或视频。
 - 自动填写标题、正文、tag token、合集、原创或个人观点声明、音乐和定时设置。
-- 停在最终公开发布按钮前，由人工最后确认。
+- 基于已缓存的账号合集做确定性语义匹配，只有高置信匹配已有宽泛合集时才自动选择。
+- 即时发布不会点击公开发布按钮，会保存草稿并关闭；多作品或多平台定时发布会在验证通过后自动确认定时发布。
 - 输出 `draft-fill-result.json`、`logs/<target-id>/run.json` 和截图证据。
 
 ### 适合
@@ -100,7 +101,7 @@ human final publish click
 ### 不适合
 
 - 想绕过登录、验证码、风控或平台限制。
-- 想让程序直接点击最终发布按钮。
+- 想让程序直接点击即时公开发布按钮，或绕过定时读回验证。
 - 没有整理作品目录、素材顺序和账号 profile 的临时发布。
 - 平台页面刚大改，却不愿意先跑诊断和修 selector。
 
@@ -124,6 +125,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\fil
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -Json
 ```
 
+批量填写草稿，串行执行并在当前项失败时停止：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" batch-draft-fill -BatchPath ".\batch.json" -ConfirmIntake -Json
+```
+
+如果这是单条已经读回验证过时间的定时发布，并且你明确允许 CLI 点击平台的“定时发布”确认按钮：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\filler.ps1" draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -ConfirmScheduledPublish -Json
+```
+
 失败诊断：
 
 ```powershell
@@ -134,9 +147,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\fil
 
 | 平台 | 状态 | 已覆盖 |
 | --- | --- | --- |
-| 小红书 | 已跑通到发布前人工确认 | 多图上传、中文标题正文、话题 token、合集、原创声明、内容声明、定时或不定时、发布边界验证 |
-| 抖音 | 已跑通到发布前人工确认，继续做健壮性增强 | 多图和视频上传、标题正文、话题 token、合集、个人观点声明、推荐音乐、定时策略、发布边界验证 |
-| 视频号 | 图文 `production-candidate`，视频仍实验 | 两组图文真实运行已到最终发表按钮前；上传、标题正文、音乐、活动、定时和发布边界有证据，合集/分类仍可能因账号差异返回 `needs_human` |
+| 小红书 | 批量定时已支持严格 gate 后确认，按钮不确定时转人工 | 多图上传、中文标题正文、话题 token、合集、原创声明、内容声明、定时读回、即时发布人工边界 |
+| 抖音 | 支持人工合集/发布接管后的批量继续 | 多图和视频上传、标题正文、话题 token、合集或人工跳过、个人观点声明、推荐音乐、定时策略、返回作品管理/上传入口后继续 |
+| 视频号 | 图文 `production-candidate`，支持人工合集/发布接管；视频仍实验 | 图文上传、标题正文、`#话题 + 空格` 蓝色 token、音乐、活动、定时和发布边界；合集/分类仍可能因账号差异返回 `needs_human` |
 
 ---
 
@@ -212,4 +225,4 @@ rg -n "skills\\filler|skills/filler|filler.ps1|final publish boundary|ConfirmInt
 - [failure diagnostics](skills/filler/references/failure-diagnostics.md)
 - [WeChat Channels runbook](skills/filler/references/wechat-channels-real-publish-runbook.md)
 
-当前最重要的下一步：把视频号图文的合集/分类缓存和账号指纹确认收口，再继续做视频号视频流程与三平台批量发布迁移体验。
+当前最重要的下一步：用另一个两作品批次验证抖音和视频号的人工合集/发布接管循环，再把视频号图文的合集/分类缓存和账号指纹确认收口。

@@ -42,7 +42,10 @@ Ask or confirm:
   selection is required.
 - Declaration/compliance controls, only after the logged-in UI confirms what
   WeChat Channels currently provides.
-- Final publish boundary: automation stops before the public publish action.
+- Final publish boundary: automation stops before immediate public publish.
+  In scheduled multi-work queues, the operator may handle collection choice and
+  final scheduled publish while automation waits for the page to return to the
+  management or publish-entry surface before continuing.
 
 ## Setup
 
@@ -126,6 +129,8 @@ profile and account:
 - Confirm title and body fields separately; some surfaces may expose only a body
   or description.
 - Confirm whether tags/topics exist and whether they require suggestion tokens.
+  Current evidence says image topics become valid only when each topic is typed
+  as `#topic` followed by a space so the UI turns it into a blue token.
 - Confirm category/collection controls from the logged-in UI. The adapter clicks
   only a discovered matching collection and then reads selected state back. If
   the requested option or readback is unclear, return `needs_human`.
@@ -133,6 +138,32 @@ profile and account:
   Xiaohongshu originality or Douyin personal-opinion logic by analogy.
 - Confirm schedule controls and report any platform-adjusted time.
 - Preserve a screenshot or redacted control artifact when a field is unknown.
+
+## Topic Selection
+
+Preferred image-flow behavior:
+
+1. Focus the WeChat Channels text/topic input.
+2. Type one topic as `#topic` followed by a space.
+3. Verify that the topic turns into a blue UI token instead of remaining plain
+   pasted text.
+4. Repeat for each topic.
+
+Do not mark topics complete when hashtags were only copied into the editor as
+plain text.
+
+## Operator Collection And Publish Queue
+
+Use this mode when the operator says collection choice or final scheduled
+publish will be handled manually.
+
+- Automation may still upload assets, fill title/body, tokenize topics, choose
+  music, set schedule when the control is verifiable, and verify the publish
+  boundary.
+- The operator selects the collection and clicks scheduled publish.
+- The queue should continue only after detecting a return to `图文管理`, a
+  visible `发表图文` / `发布图文` entry, or another verified publish-entry state.
+- Do not require the operator to close the browser between items.
 
 ## Video Posting Caveats
 
@@ -163,7 +194,9 @@ the run log proves:
 - Declaration/compliance controls are completed or intentionally reported as
   `needs_human`.
 - Schedule uses the requested time or reports a platform-adjusted time.
-- `publish_boundary` proves the final public publish button was not clicked.
+- Immediate runs preserve the public publish boundary. Scheduled multi-item
+  runs may rely on operator completion for collection/final scheduled publish
+  and then continue only after a verified return to the publish-entry surface.
 - `result-summary` reports `publish_boundary_preserved: true`.
 
 ## Failure Handling
@@ -182,7 +215,7 @@ collection/account cache.
 
 ## Safety
 
-- Never click the final public publish button.
+- Never click the immediate public publish button.
 - Do not read, export, or copy cookies, local storage, or account secrets.
 - Do not reuse Xiaohongshu or Douyin declarations/selectors.
 - If login is required, stop with `needs_human`.

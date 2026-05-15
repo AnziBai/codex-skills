@@ -3,10 +3,15 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { adapters, collectionInspectors, inspectCollections } from "./adapters.mjs";
+import { readBatchFile, runBatchDraftFill } from "./batch-draft-fill.mjs";
 import { ProfileLockHeldError, launchPersistentProfile } from "./browser-profile.mjs";
-import { accountFingerprintFromPlan, collectionCacheStep, collectionCacheSummary, readCollectionCache, validateProfileName, writeCollectionCache } from "./collection-cache.mjs";
+import { accountFingerprintFromPlan, collectionCacheSummary, readCollectionCache, validateProfileName, writeCollectionCache } from "./collection-cache.mjs";
+import { planWithResolvedCollection, resolveCollectionDecision } from "./collection-matcher.mjs";
+import { maybeSaveDraftAndExit } from "./draft-exit.mjs";
+import { PUBLISH_CLOSE_POLICIES, determinePublishClosePolicy } from "./publish-close-policy.mjs";
 import { ResultSummaryInputError, summarizeResultFile } from "./result-summary.mjs";
 import { RobustnessMatrixInputError, runRobustnessMatrix } from "./robustness-matrix.mjs";
+import { maybeConfirmScheduledPublish } from "./scheduled-publish.mjs";
 import {
   STATUS,
   defaultProfileName,
@@ -43,6 +48,7 @@ async function main() {
     if (command === "robustness-matrix") return await robustnessMatrix(args);
     if (command === "inspect-collections") return await inspectCollectionsCommand(args);
     if (command === "inspect-wechat-channels") return await inspectWechatChannels(args);
+    if (command === "batch-draft-fill") return await batchDraftFill(args);
     if (command === "draft-fill") return await draftFill(args);
     return exit(2, { ok: false, error: `Unknown draft-fill command: ${command}` }, args.json);
   } catch (error) {
@@ -159,6 +165,18 @@ async function robustnessMatrix(args) {
     throw error;
   }
   return exit(result.ok ? 0 : 5, result, args.json);
+}
+
+async function batchDraftFill(args) {
+  if (!args.batchPath) return exit(2, { ok: false, error: "--batch-path is required." }, args.json);
+  const batchPath = path.resolve(args.batchPath);
+  const batch = await readBatchFile(batchPath);
+  const result = await runBatchDraftFill({
+    batch,
+    args,
+    batchDir: path.dirname(batchPath)
+  });
+  return exit(result.overall_status === "failed" ? 5 : result.overall_status === "needs_human" ? 4 : 0, result, args.json);
 }
 
 async function setup(args) {
@@ -283,17 +301,17 @@ async function preflight(args) {
       platform: plan.platform,
       accountFingerprint: accountFingerprintFromPlan(plan)
     });
-    const cacheStep = collectionCacheStep(cacheStatus, plan.collection);
-    steps.push(cacheStep);
-    if (cacheStep.status === STATUS.needsHuman) {
+    const collectionStep = await collectionDecisionStepForPlan({ plan, cacheStatus, workDir });
+    steps.push(collectionStep);
+    if (collectionStep.status === STATUS.needsHuman) {
       addQuestion(questions, {
-        id: "inspect_collections",
-        question: `是否先检查 ${plan.platform}/${profileName} 的合集列表？`,
-        why: "The requested collection must already exist in the profile cache; narrow collections are not auto-created.",
+        id: "collection_decision",
+        question: `合集没有高置信匹配，怎么处理？`,
+        why: "The CLI only selects an existing visible collection after a trusted cache and high-confidence semantic match.",
         ...choiceSet([
-          choice("检查合集 (Recommended)", "打开 Profile 一次，缓存页面可见合集选项。", "inspect", true),
+          choice("检查合集 (Recommended)", "重新打开 Profile 缓存页面可见合集选项。", "inspect", true),
           choice("本次跳过合集", "自动填草稿，但不自动选择合集。", "skip"),
-          choice("人工选择合集", "停在草稿页，让操作者手动选择合集。", "manual")
+          choice("人工指定合集", "提供一个确定存在且语义匹配的合集名称。", "manual")
         ], "inspect")
       });
     }
@@ -315,6 +333,43 @@ async function inferProfileName(planPath) {
   } catch {
     return null;
   }
+}
+
+async function collectionDecisionStepForPlan({ plan, cacheStatus, workDir }) {
+  try {
+    const decision = await resolveCollectionDecision({ plan, cacheStatus, workDir });
+    return step(
+      "collection_decision",
+      decision.status,
+      decision.message,
+      sanitizeCollectionDecision(decision)
+    );
+  } catch (error) {
+    return step("collection_decision", STATUS.failed, `Collection decision failed: ${error.message}`);
+  }
+}
+
+function sanitizeCollectionDecision(decision) {
+  return {
+    status: decision.status,
+    reason_code: decision.reason_code,
+    requested_collection: decision.requested_collection,
+    selected_collection: decision.selected_collection,
+    confidence: decision.confidence,
+    match_type: decision.match_type,
+    matched_keywords: Array.isArray(decision.matched_keywords) ? decision.matched_keywords : [],
+    candidate_count: decision.candidate_count || 0,
+    candidates: Array.isArray(decision.candidates)
+      ? decision.candidates.slice(0, 3).map((candidate) => ({
+          selected_collection: candidate.selected_collection,
+          taxonomy_collection: candidate.taxonomy_collection,
+          score: candidate.score,
+          confidence: candidate.confidence,
+          match_type: candidate.match_type,
+          matched_keywords: candidate.matched_keywords || []
+        }))
+      : []
+  };
 }
 
 function collectPreflightPrompts(plan, manifest, questions, confirmations) {
@@ -858,11 +913,11 @@ async function inspectCollectionsCommand(args) {
       platform: plan.platform,
       accountFingerprint
     });
-    const cacheStep = collectionCacheStep(cacheStatus, plan.collection);
+    const collectionDecisionStep = await collectionDecisionStepForPlan({ plan, cacheStatus, workDir });
     const steps = [
       step("draft_plan", STATUS.done, "draft-plan.json valid."),
       step("dry_run", STATUS.done, "Validated inspect-collections plan and cache semantics without opening browser."),
-      cacheStep
+      collectionDecisionStep
     ];
     const status = overallStatus(steps);
     return exit(status === STATUS.failed ? 5 : status === STATUS.needsHuman ? 4 : 0, {
@@ -873,6 +928,7 @@ async function inspectCollectionsCommand(args) {
       platform: plan.platform,
       profile_name: profileName,
       collection_cache: collectionCacheSummary(cacheStatus),
+      collection_decision: collectionDecisionStep.details || null,
       overall_status: status,
       steps
     }, args.json);
@@ -1378,6 +1434,7 @@ async function draftFill(args) {
   const workDir = path.resolve(args.workDir);
   const planPath = path.join(workDir, "draft-plan.json");
   const plan = await readJson(planPath);
+  const manifest = await readManifestForIntake(workDir);
   const errors = await validatePlan(plan, workDir, args.targetId);
   const targetId = plan.target_id;
   if (errors.length > 0) {
@@ -1449,25 +1506,64 @@ async function draftFill(args) {
     });
     const page = profile.page;
     steps.push(step("browser_profile", STATUS.done, `Using browser profile: ${profileName}`, { profile_name: profileName }));
+    let adapterPlan = plan;
     if (plan.collection) {
-      const cacheStatus = await readCollectionCache({
-        profileName,
-        platform: plan.platform,
-        accountFingerprint: accountFingerprintFromPlan(plan)
-      });
-      const cacheStep = collectionCacheStep(cacheStatus, plan.collection);
-      steps.push(cacheStep);
-      if (cacheStep.status !== STATUS.done) {
-        const result = resultPayload(plan, steps, profileName, false);
-        await writeRunResult(workDir, targetId, result);
-        if (profile?.context) await profile.context.close().catch(() => {});
-        if (profile?.closed) await profile.closed.catch(() => {});
-        if (profile?.release) await profile.release().catch(() => {});
-        return exit(4, result, args.json);
+      if (plan.platform === "xiaohongshu" || plan.platform === "wechat_channels" || plan.platform === "douyin") {
+        steps.push(step("collection_decision", STATUS.done, `${composerCollectionPlatformName(plan.platform)} collection selection is handled inside the uploaded composer.`, {
+          reason_code: "composer_visible_collection_selection",
+          requested_collection: plan.collection,
+          selected_collection: plan.collection,
+          match_type: "composer_exact"
+        }));
+      } else {
+        const cacheStatus = await readCollectionCache({
+          profileName,
+          platform: plan.platform,
+          accountFingerprint: accountFingerprintFromPlan(plan)
+        });
+        const collectionStep = await collectionDecisionStepForPlan({ plan, cacheStatus, workDir });
+        steps.push(collectionStep);
+        if (collectionStep.status !== STATUS.done) {
+          const result = resultPayload(plan, steps, profileName, false);
+          await writeRunResult(workDir, targetId, result);
+          if (profile?.context) await profile.context.close().catch(() => {});
+          if (profile?.closed) await profile.closed.catch(() => {});
+          if (profile?.release) await profile.release().catch(() => {});
+          return exit(4, result, args.json);
+        }
+        adapterPlan = planWithResolvedCollection(plan, collectionStep.details);
       }
     }
-    const adapterSteps = await adapter.run({ page, plan, logDir, profileName, workDir });
+    const adapterSteps = await adapter.run({ page, plan: adapterPlan, logDir, profileName, workDir });
     steps.push(...adapterSteps);
+    const closePolicy = determinePublishClosePolicy({
+      plan: adapterPlan,
+      manifest,
+      confirmScheduledPublish: isTruthyFlag(args.confirmScheduledPublish),
+      batchItemCount: Number(args.batchItemCount || 1)
+    });
+    steps.push(step("publish_close_policy", STATUS.done, `Publish close policy: ${closePolicy.policy}.`, closePolicy));
+    if (closePolicy.policy === PUBLISH_CLOSE_POLICIES.scheduledBatchConfirm) {
+      const scheduledConfirmationStep = await maybeConfirmScheduledPublish({
+        page,
+        plan: adapterPlan,
+        steps,
+        confirmScheduledPublish: true
+      });
+      if (scheduledConfirmationStep.status === STATUS.done && ["wechat_channels", "douyin"].includes(adapterPlan.platform)) {
+        reconcileManualHandoffSteps(steps, scheduledConfirmationStep, adapterPlan.platform);
+      }
+      steps.push(scheduledConfirmationStep);
+      if (scheduledConfirmationStep.status === STATUS.done) await profile.context.close().catch(() => {});
+    } else if (closePolicy.policy === PUBLISH_CLOSE_POLICIES.immediateSaveDraftExit) {
+      steps.push(await maybeSaveDraftAndExit({
+        adapter,
+        page,
+        context: profile.context,
+        plan: adapterPlan,
+        steps
+      }));
+    }
   } catch (error) {
     if (error instanceof ProfileLockHeldError) return exit(6, error.payload, args.json);
     if (isPersistentProfileSessionOpenError(error)) {
@@ -1497,6 +1593,32 @@ function isPersistentProfileSessionOpenError(error) {
     && /user-data-dir=.*profiles/i.test(message);
 }
 
+function composerCollectionPlatformName(platform) {
+  if (platform === "xiaohongshu") return "Xiaohongshu";
+  if (platform === "wechat_channels") return "WeChat Channels";
+  if (platform === "douyin") return "Douyin";
+  return platform || "Platform";
+}
+
+function reconcileManualHandoffSteps(steps, scheduledConfirmationStep, platform) {
+  const accepted = new Set(scheduledConfirmationStep?.details?.operator_accepted_blocked_steps || []);
+  if (accepted.size === 0) return;
+  for (const item of steps) {
+    if (!accepted.has(item?.name) || item.status !== STATUS.needsHuman) continue;
+    const priorMessage = item.message || "";
+    item.status = STATUS.done;
+    item.message = `Human operator completed or accepted this step during ${composerCollectionPlatformName(platform)} scheduled publish handoff; automation did not verify it. Prior: ${priorMessage}`;
+    item.details = {
+      ...(item.details || {}),
+      prior_status: STATUS.needsHuman,
+      prior_message: priorMessage,
+      verified_by_automation: false,
+      operator_completed_scheduled_publish: true,
+      handoff_reason_code: scheduledConfirmationStep.details?.manual_handoff_reason_code || null
+    };
+  }
+}
+
 const SAMPLE_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
 
 function resultPayload(plan, steps, profileName, dryRun) {
@@ -1511,8 +1633,25 @@ function resultPayload(plan, steps, profileName, dryRun) {
     stop_before_publish: true,
     ran_at: new Date().toISOString(),
     overall_status: overallStatus(steps),
+    publish_action: derivePublishAction(steps),
     steps
   };
+}
+
+function derivePublishAction(steps) {
+  if (steps.some((item) => item.name === "scheduled_publish_confirmation" && item.status === STATUS.done)) {
+    return "scheduled_publish_confirmed";
+  }
+  if (steps.some((item) => item.name === "scheduled_publish_confirmation" && item.status === STATUS.needsHuman && Number(item?.details?.click_count || 0) > 0)) {
+    return "needs_human_after_click";
+  }
+  if (steps.some((item) => item.name === "draft_exit" && item.status === STATUS.done)) {
+    return "immediate_draft_saved_and_closed";
+  }
+  if (steps.some((item) => [STATUS.failed, STATUS.needsHuman, STATUS.retrying].includes(item.status))) {
+    return "needs_human_before_publish";
+  }
+  return "stopped_at_boundary";
 }
 
 async function exit(code, payload, json) {

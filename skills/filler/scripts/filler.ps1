@@ -1,9 +1,10 @@
 ﻿param(
   [Parameter(Position = 0, Mandatory = $true)]
-  [ValidateSet("validate", "publish", "resume", "retry-failed", "record-manual-result", "status", "copy-generate", "copy-select", "draft-plan", "setup-draft-fill", "open-profile", "login-profile", "draft-fill", "doctor", "preflight", "sample-run", "diagnose-failure", "result-summary", "robustness-matrix", "inspect-collections", "inspect-wechat-channels")]
+  [ValidateSet("validate", "publish", "resume", "retry-failed", "record-manual-result", "status", "copy-generate", "copy-select", "draft-plan", "setup-draft-fill", "open-profile", "login-profile", "draft-fill", "batch-draft-fill", "doctor", "preflight", "sample-run", "diagnose-failure", "result-summary", "robustness-matrix", "inspect-collections", "inspect-wechat-channels")]
   [string]$Command,
 
   [string]$WorkDir,
+  [string]$BatchPath,
   [string]$AccountsPath,
   [string]$TargetId,
   [string]$Url,
@@ -18,6 +19,7 @@
   [switch]$DryRun,
   [switch]$ConfirmAccountFingerprint,
   [switch]$ConfirmIntake,
+  [switch]$ConfirmScheduledPublish,
   [switch]$Json
 )
 
@@ -110,7 +112,9 @@ function Invoke-DraftFillNode {
     [bool]$DryRun,
     [bool]$ConfirmAccountFingerprint,
     [bool]$JsonOutput,
-    [bool]$ConfirmIntake = $false
+    [bool]$ConfirmIntake = $false,
+    [bool]$ConfirmScheduledPublish = $false,
+    [string]$BatchPath = $null
   )
   $runner = Join-Path (Split-Path -Parent $PSScriptRoot) "draft-fill\src\cli.mjs"
   if (!(Test-Path -LiteralPath $runner)) { throw "Draft-fill runner not found: $runner" }
@@ -121,7 +125,9 @@ function Invoke-DraftFillNode {
   if ($DryRun) { $args += "--dry-run" }
   if ($ConfirmAccountFingerprint) { $args += "--confirm-account-fingerprint" }
   if ($ConfirmIntake) { $args += "--confirm-intake" }
+  if ($ConfirmScheduledPublish) { $args += "--confirm-scheduled-publish" }
   if ($JsonOutput) { $args += "--json" }
+  if (-not [string]::IsNullOrWhiteSpace($BatchPath)) { $args += @("--batch-path", $BatchPath) }
   if (-not [string]::IsNullOrWhiteSpace($Platform)) { $args += @("--platform", $Platform) }
   if (-not [string]::IsNullOrWhiteSpace($Surface)) { $args += @("--surface", $Surface) }
   if (-not [string]::IsNullOrWhiteSpace($SourceRoot)) { $args += @("--source-root", $SourceRoot) }
@@ -612,6 +618,7 @@ function New-DraftPlan {
   $coverText = Get-PropertyValue $selected "cover_text" (Get-OverrideValue $target "cover_text" $null)
   $collectionFallback = Get-PropertyValue $manifest "collection" (Get-InferredCollection $manifest $platform $title $body)
   $collection = Get-OverrideValue $target "collection" $collectionFallback
+  $collectionTaxonomyPath = Get-OverrideValue $target "collection_taxonomy_path" (Get-PropertyValue $manifest "collection_taxonomy_path" $null)
   $declaration = Get-OverrideValue $target "declaration" (Get-DefaultDeclaration $platform)
   $music = Get-OverrideValue $target "music" (Get-DefaultMusic $platform)
   $schedule = Get-OverrideValue $target "schedule" (Get-DraftSchedule $manifest)
@@ -641,6 +648,7 @@ function New-DraftPlan {
     tags = @($tags | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
     cover_text = $coverText
     collection = $collection
+    collection_taxonomy_path = $collectionTaxonomyPath
     declaration = $declaration
     music = $music
     schedule = $schedule
@@ -1136,7 +1144,12 @@ try {
     if ([string]::IsNullOrWhiteSpace($WorkDir)) { throw "-WorkDir is required." }
     $workRootForFill = Get-WorkPath $WorkDir
     Ensure-DraftPlan $workRootForFill $TargetId
-    Invoke-DraftFillNode "draft-fill" $workRootForFill $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json $ConfirmIntake
+    Invoke-DraftFillNode "draft-fill" $workRootForFill $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json $ConfirmIntake $ConfirmScheduledPublish
+  }
+
+  if ($Command -eq "batch-draft-fill") {
+    if ([string]::IsNullOrWhiteSpace($BatchPath)) { throw "-BatchPath is required." }
+    Invoke-DraftFillNode "batch-draft-fill" $null $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json $ConfirmIntake $ConfirmScheduledPublish $BatchPath
   }
 
   if ($Command -eq "inspect-wechat-channels") {
@@ -1146,7 +1159,7 @@ try {
     Invoke-DraftFillNode "inspect-wechat-channels" $workRootForInspect $TargetId $ProfileName $Platform $Surface $SourceRoot $OutputRoot $DryRun $ConfirmAccountFingerprint $Json
   }
 
-  if ($Command -ne "status" -and [string]::IsNullOrWhiteSpace($WorkDir)) { throw "-WorkDir is required." }
+  if ($Command -ne "status" -and $Command -ne "batch-draft-fill" -and [string]::IsNullOrWhiteSpace($WorkDir)) { throw "-WorkDir is required." }
   $workRoot = Get-WorkPath $WorkDir
   $accounts = Read-Accounts $AccountsPath
 

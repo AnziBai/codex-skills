@@ -14,7 +14,7 @@ export { xiaohongshuAdapter } from "./platforms/xiaohongshu.mjs";
 
 export { extractVisibleUploadedImageCount, normalizeCollectionNames, platformIdentityStep, redactedTextEvidence, textContainsContentFingerprint, textContainsPlainTags } from "./platforms/common.mjs";
 
-export { appendPlainHashTags, chooseWechatChannelsCollectionName, classifyWechatChannelsInput, isWechatChannelsImageEntryButton, isWechatChannelsPublishButton, parseWechatChannelsCarouselCount } from "./platforms/wechat-channels.mjs";
+export { appendPlainHashTags, chooseWechatChannelsCollectionName, classifyWechatChannelsInput, isWechatChannelsImageEntryButton, isWechatChannelsPublishButton, parseWechatChannelsCarouselCount, wechatChannelsTopicEvidenceOk } from "./platforms/wechat-channels.mjs";
 
 export const adapters = {
   xiaohongshu: xiaohongshuAdapter,

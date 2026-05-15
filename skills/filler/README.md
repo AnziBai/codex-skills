@@ -2,12 +2,17 @@
 
 This guide is for a coworker taking over `filler` without reading the
 implementation first. The tool prepares platform copy, builds draft plans,
-opens dedicated Chrome profiles, fills platform drafts, records evidence, and
-stops before the final public publish action.
+opens dedicated Chrome profiles, fills platform drafts, records evidence,
+confirms verified multi-item scheduled publishes, and saves immediate drafts
+instead of clicking public publish.
 
 ## Non-Negotiables
 
-- Automation must not click the final public publish/submit/confirm button.
+- Automation must not click an immediate public publish/submit button.
+- Multi-work or multi-platform scheduled runs confirm scheduled publish after
+  schedule readback and critical-step verification.
+- Immediate runs save or temporarily store the draft and close the dedicated
+  profile only after the save is verified.
 - Use a dedicated Chrome profile per platform account. Never use a daily
   browsing profile.
 - Do not commit profiles, cookies, local storage, account configs, real work
@@ -118,8 +123,9 @@ Typical decisions:
   opinion/declaration, and WeChat Channels category/declaration only after the
   logged-in UI confirms the available controls.
 - Music defaults, especially Douyin recommended music.
-- Final publish boundary: the tool prepares and verifies the draft; the human
-  operator reviews and performs the public publish click.
+- Final immediate publish boundary: the tool prepares and verifies the draft,
+  then saves it. The human operator performs any immediate public publish later.
+  Multi-item scheduled runs are confirmed by the CLI after verification.
 
 Recommended defaults for low-friction use:
 
@@ -212,6 +218,10 @@ Inspect collections when requested:
 `profiles/<profile>/collection-cache.json`. The cache is local evidence for that
 profile only and must not be committed. Draft filling trusts the cache only when
 the profile, platform, collection, freshness, and account fingerprint match.
+After the cache is trusted, the CLI performs deterministic semantic collection
+matching against the built-in taxonomy or `draft-plan.collection_taxonomy_path`.
+It selects an existing broad collection only on high confidence; ambiguous or
+stale choices return `needs_human` instead of clicking the first option.
 
 Use `-ConfirmAccountFingerprint` only after the operator verifies the visible
 logged-in account and the plan includes the intended `account_fingerprint`:
@@ -237,6 +247,23 @@ handled:
 
 ```powershell
 & powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -Json
+```
+
+For a single scheduled target, clicking the platform's scheduled-publish
+confirmation is a separate explicit decision. Multi-work or multi-platform
+scheduled runs do this automatically after schedule readback and critical-step
+verification. Immediate publish buttons remain manual; the CLI saves the draft
+instead:
+
+```powershell
+& powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher draft-fill -WorkDir ".\work" -TargetId "xhs-main-note" -ProfileName "xhs-main" -ConfirmIntake -ConfirmScheduledPublish -Json
+```
+
+Batch draft fill runs items serially and stops at the first item that needs
+human help:
+
+```powershell
+& powershell -NoProfile -ExecutionPolicy Bypass -File $Publisher batch-draft-fill -BatchPath ".\batch.json" -ConfirmIntake -Json
 ```
 
 Afterward, summarize the result:

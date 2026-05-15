@@ -9,7 +9,8 @@ Real social publishing is not only a mechanical form-fill task. The flow must co
 - AI title/copy decisions.
 - Platform-specific validation.
 - Real Chrome upload verification.
-- Human-owned final publish submission.
+- Human-owned immediate publish submission, with tightly gated scheduled
+  confirmation for batch/multi-platform scheduled runs.
 - Recovery behavior when browser automation fails.
 
 ## Required Pre-Publish Decisions
@@ -37,21 +38,35 @@ Verify all of these before final publish:
 - Collection is selected from product knowledge or explicit override.
 - Original declaration is fully completed.
 - Scheduling state matches the user's decision.
-- Final publish button is present and enabled, but automation must not click it. The human operator performs the final publish click to reduce platform automation-risk signals.
+- For immediate runs, the final publish button is present and enabled, but
+  automation must not click it. The human operator owns immediate public
+  submission.
+- For batch or multi-platform scheduled runs, automation may click the
+  Xiaohongshu `定时发布` confirmation only after page readback proves the
+  requested time and every critical draft-fill step is done or intentionally
+  skipped. If the button cannot be resolved safely, hand off to the operator.
 
 ## Final Publish Boundary
 
-Never click the real public `发布` / `提交` / `确认发布` button in platform automation.
+Never click an immediate public `发布` / `提交` / `确认发布` button in platform automation.
 
 The automation boundary is:
 
 1. Upload assets.
 2. Fill or select title, body, tags, collection, declarations, visibility, and scheduling.
 3. Verify the draft is ready and the publish button is visible/enabled.
-4. Stop and hand off to the human operator for the final click.
-5. After the human publishes, resume only to verify the result page/status and record the outcome.
+4. For immediate runs, stop and hand off to the human operator for the final
+   click or verified draft save.
+5. For batch or multi-platform scheduled runs, confirm `定时发布` only after the
+   strict scheduled gate passes. If the DOM/shadow/XPath/screenshot resolver is
+   ambiguous, wait for the human operator to click and verify the return state
+   before continuing.
+6. After the human or automation completes scheduled publish, resume only to
+   verify the result page/status and record the outcome.
 
-This applies even if the user has broadly authorized testing. The final public submission action belongs to the human.
+This applies even if the user has broadly authorized testing. Immediate public
+submission belongs to the human; scheduled confirmation belongs to automation
+only when the explicit runtime gate passes.
 
 ## Original Declaration
 

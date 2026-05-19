@@ -129,6 +129,7 @@ assert.equal(isWechatChannelsImageEntryButton("\u53d1\u8868\u56fe\u6587"), true)
 assert.equal(isWechatChannelsImageEntryButton("\u53d1\u8868 \u56fe\u6587"), true);
 assert.equal(isWechatChannelsImageEntryButton("\u53d1\u5e03\u56fe\u6587"), true);
 assert.equal(isWechatChannelsImageEntryButton("\u65b0\u5efa\u56fe\u6587"), true);
+assert.equal(isWechatChannelsImageEntryButton("\u53d1\u56fe\u6587"), true);
 assert.equal(isWechatChannelsImageEntryButton("\u53d1\u8868"), false);
 assert.equal(isWechatChannelsImageEntryButton("\u4fdd\u5b58\u8349\u7a3f \u53d1\u8868"), false);
 

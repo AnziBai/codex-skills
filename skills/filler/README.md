@@ -355,6 +355,10 @@ WeChat Channels:
 - Image posting is a production candidate only after visible upload state,
   title/body fields, category/collection/declaration behavior, schedule, and the
   final boundary are verified.
+- The image-post entry can appear late and may be labeled `发布图文`,
+  `发表图文`, `发布动态`, `新建图文`, or compact `发图文`. The adapter waits for
+  matching entry evidence in the outer page and content frame before stopping
+  for human help.
 - Video posting remains experimental unless a fresh runbook says otherwise.
 - Do not borrow Xiaohongshu or Douyin selectors/declarations by analogy.
 

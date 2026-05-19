@@ -107,9 +107,9 @@ async function waitForWechatChannelsImageReady(frame, timeoutMs) {
 }
 
 async function clickWechatChannelsImageEntry(page, frame) {
-  const pageClick = await clickWechatChannelsImageEntryInScope(page, "outer_page");
+  const pageClick = await clickWechatChannelsImageEntryInScope(page, "outer_page", { waitMs: 15000 });
   if (pageClick.clicked) return pageClick;
-  const frameClick = await clickWechatChannelsImageEntryInScope(frame, "content_frame");
+  const frameClick = await clickWechatChannelsImageEntryInScope(frame, "content_frame", { waitMs: 5000 });
   if (frameClick.clicked) return frameClick;
   return {
     clicked: false,
@@ -120,8 +120,8 @@ async function clickWechatChannelsImageEntry(page, frame) {
   };
 }
 
-async function clickWechatChannelsImageEntryInScope(scope, scopeName) {
-  const evidence = { scope: scopeName, ...(await readWechatChannelsImageEntryEvidence(scope)) };
+async function clickWechatChannelsImageEntryInScope(scope, scopeName, options = {}) {
+  const evidence = await waitForWechatChannelsImageEntryEvidence(scope, scopeName, options.waitMs || 0);
   const ownerPage = typeof scope.page === "function" ? scope.page() : scope;
   const selectors = [
     scope.getByRole("button", { name: WECHAT_CHANNELS_IMAGE_ENTRY_RE }).first(),
@@ -172,6 +172,17 @@ const WECHAT_CHANNELS_IMAGE_ENTRY_RE = /\u53d1\u8868\u56fe\u6587|\u53d1\u8868\u5
 
 export function isWechatChannelsImageEntryButton(text) {
   return WECHAT_CHANNELS_IMAGE_ENTRY_RE.test(String(text || "").replace(/\s+/g, ""));
+}
+
+async function waitForWechatChannelsImageEntryEvidence(scope, scopeName, timeoutMs) {
+  const ownerPage = typeof scope.page === "function" ? scope.page() : scope;
+  const deadline = Date.now() + timeoutMs;
+  let evidence = { scope: scopeName, ...(await readWechatChannelsImageEntryEvidence(scope)) };
+  while (Date.now() < deadline && evidence.matched_entry_count === 0) {
+    await ownerPage.waitForTimeout(500);
+    evidence = { scope: scopeName, ...(await readWechatChannelsImageEntryEvidence(scope)) };
+  }
+  return evidence;
 }
 
 async function readWechatChannelsImageEntryEvidence(frame) {

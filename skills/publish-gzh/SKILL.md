@@ -13,8 +13,10 @@ draft-box publishing. Keep credentials and private content outside the skill.
 
 - New article or rewrite: read [workflow.md](references/workflow.md) and
   [content-and-compliance.md](references/content-and-compliance.md).
-- Teammate installation or a new machine: read
-  [setup.md](references/setup.md), then run `doctor` before doing article work.
+- Teammate installation or a new machine: follow
+  [quick-start.md](references/quick-start.md). Read
+  [setup.md](references/setup.md) for the full prerequisite matrix, then run
+  `doctor` before doing article work.
 - Image matching or an old absolute-path image index: read
   [image-pipeline.md](references/image-pipeline.md).
 - Draft-box publishing or failure recovery: read

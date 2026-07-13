@@ -26,7 +26,7 @@
 | Skill | 一句话 | 状态 | 入口 |
 | --- | --- | --- | --- |
 | `filler` | 把已经完成的作品变成平台发布草稿：AI 写标题和文案，CLI 校验素材，Playwright 自动上传并填写小红书、抖音、视频号草稿；即时发布保存草稿，批量定时自动确认。 | 生产试运行 | [SKILL.md](skills/filler/SKILL.md) · [同事指南](skills/filler/README.md) |
-| `publish-gzh` | 从选题、来源约束和中文写作开始，完成独立审稿、可选语义配图、确定性校验与微信公众号草稿箱发布。 | 候选发布 | [SKILL.md](skills/publish-gzh/SKILL.md) · [安装准备](skills/publish-gzh/references/setup.md) |
+| `publish-gzh` | 从选题、来源约束和中文写作开始，完成独立审稿、可选语义配图、确定性校验与微信公众号草稿箱发布。 | 候选发布 | [Quick Start](skills/publish-gzh/references/quick-start.md) · [SKILL.md](skills/publish-gzh/SKILL.md) · [安装准备](skills/publish-gzh/references/setup.md) |
 
 后续新的 skill 会继续放在 `skills/<skill-name>` 下。每个 skill 都应该可以单独安装、单独阅读、单独测试。
 
@@ -61,8 +61,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\fil
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\publish-gzh\scripts\register-local-skill.ps1" -Json
 ```
 
-安装完成后重启 Codex 或新建任务，让 Skill 元数据重新加载。公众号、GLM 和
-wenyan-mcp 的前置配置见 [安装准备](skills/publish-gzh/references/setup.md)。
+安装完成后重启 Codex 或新建任务，让 Skill 元数据重新加载。第一次配置直接按
+[同事 Quick Start](skills/publish-gzh/references/quick-start.md)操作；公众号、GLM 和
+wenyan-mcp 的完整前置说明见[安装准备](skills/publish-gzh/references/setup.md)。
 
 ---
 

@@ -5,6 +5,9 @@ profiles/
 # Installed dependencies
 node_modules/
 **/node_modules/
+__pycache__/
+**/__pycache__/
+*.py[cod]
 
 # Generated publish/test work
 *-test-work/

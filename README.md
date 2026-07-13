@@ -3,9 +3,9 @@
 #### 在真实工作流里跑通、能交给同事复用的 Codex Skills
 
 [![Skills](https://img.shields.io/badge/Skills-Codex-black)](https://github.com/AnziBai/codex-skills)
-[![Primary Skill](https://img.shields.io/badge/Primary-filler-2f6fed)](skills/filler/SKILL.md)
-[![Runtime](https://img.shields.io/badge/Runtime-Node.js%20%2B%20PowerShell-1f883d)](skills/filler/draft-fill/package.json)
-[![Automation Boundary](https://img.shields.io/badge/Boundary-human%20final%20publish%20click-f59e0b)](skills/filler/README.md)
+[![Collection](https://img.shields.io/badge/Collection-2%20Codex%20Skills-2f6fed)](#skills)
+[![Runtime](https://img.shields.io/badge/Runtime-Python%20%2B%20Node.js%20%2B%20PowerShell-1f883d)](#安装方式)
+[![Automation Boundary](https://img.shields.io/badge/Boundary-human%20final%20publish%20click-f59e0b)](#skills)
 
 这里收纳的是我自己和团队会反复使用的 AI skills。不是灵感碎片，也不是一次性 prompt 仓库。
 
@@ -26,7 +26,7 @@
 | Skill | 一句话 | 状态 | 入口 |
 | --- | --- | --- | --- |
 | `filler` | 把已经完成的作品变成平台发布草稿：AI 写标题和文案，CLI 校验素材，Playwright 自动上传并填写小红书、抖音、视频号草稿；即时发布保存草稿，批量定时自动确认。 | 生产试运行 | [SKILL.md](skills/filler/SKILL.md) · [同事指南](skills/filler/README.md) |
-| `publish-gzh` | 从选题、来源约束和中文写作开始，完成独立审稿、可选语义配图、确定性校验与微信公众号草稿箱发布。 | 候选发布 | [Quick Start](skills/publish-gzh/references/quick-start.md) · [SKILL.md](skills/publish-gzh/SKILL.md) · [安装准备](skills/publish-gzh/references/setup.md) |
+| `publish-gzh` | 从选题、来源约束和中文写作开始，完成独立审稿、可选语义配图、确定性校验与微信公众号草稿箱发布。 | 离线验证通过 | [Quick Start](skills/publish-gzh/references/quick-start.md) · [SKILL.md](skills/publish-gzh/SKILL.md) · [安装准备](skills/publish-gzh/references/setup.md) |
 
 后续新的 skill 会继续放在 `skills/<skill-name>` 下。每个 skill 都应该可以单独安装、单独阅读、单独测试。
 
@@ -114,7 +114,7 @@ python ".\skills\publish-gzh\scripts\publish_gzh.py" validate --article "C:\path
 
 ## Filler
 
-`filler` 是这个仓库里的第一个生产级 skill。它解决的是一个很具体的问题：
+`filler` 负责多平台草稿自动填写。它解决的是一个很具体的问题：
 
 > 作品已经做好了，但发布到小红书、抖音、视频号时，标题、正文、tag、合集、声明、音乐、定时和素材上传都要重复处理。
 
@@ -234,7 +234,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\filler\scripts\fil
         |-- SKILL.md
         |-- agents/
         |-- references/
-        `-- scripts/
+        |-- scripts/
+        `-- tests/
 ```
 
 `SKILL.md` 是给 Codex 看的入口；`references/` 放长文档和平台 runbook；`scripts/` 放可重复执行的确定性逻辑；`draft-fill/` 是 Playwright 执行层。
@@ -276,17 +277,25 @@ npm run robustness-matrix
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\skills\publish-gzh\scripts\test-publish-gzh.ps1"
 ```
 
-如果只是文档改动，至少确认 README、`SKILL.md`、同事指南和 handoff 里的路径仍然一致：
+如果只是文档改动，至少确认 README、两个 `SKILL.md`、同事指南和 references
+里的路径仍然一致：
 
 ```powershell
-rg -n "skills\\filler|skills/filler|filler.ps1|final publish boundary|ConfirmIntake" README.md AGENTS.md docs skills/filler
+rg -n "skills\\filler|skills/filler|skills\\publish-gzh|skills/publish-gzh|filler.ps1|publish_gzh.py" README.md AGENTS.md docs skills
 ```
 
 ---
 
 ## Handoff
 
-继续开发前先读：
+继续开发 `publish-gzh` 前先读：
+
+- [同事 Quick Start](skills/publish-gzh/references/quick-start.md)
+- [标准工作流](skills/publish-gzh/references/workflow.md)
+- [微信草稿箱发布](skills/publish-gzh/references/publishing.md)
+- [故障排查](skills/publish-gzh/references/troubleshooting.md)
+
+继续开发 `filler` 前先读：
 
 - [filler handoff](docs/filler-handoff.md)
 - [verification evidence](docs/filler-verification-evidence.md)
@@ -294,4 +303,7 @@ rg -n "skills\\filler|skills/filler|filler.ps1|final publish boundary|ConfirmInt
 - [failure diagnostics](skills/filler/references/failure-diagnostics.md)
 - [WeChat Channels runbook](skills/filler/references/wechat-channels-real-publish-runbook.md)
 
-当前最重要的下一步：用另一个两作品批次验证抖音和视频号的人工合集/发布接管循环，再把视频号图文的合集/分类缓存和账号指纹确认收口。
+`publish-gzh` 的下一步是真实凭据受控环境下验证 GLM 配图质量与
+wenyan-mcp 草稿箱创建；`filler` 的下一步是用另一个两作品批次验证抖音和
+视频号的人工合集/发布接管循环，再把视频号图文的合集/分类缓存和账号指纹确认
+收口。
